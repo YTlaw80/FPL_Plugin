@@ -4,3 +4,13 @@ version: 1.0.0
 api-version: "1.21"
 author: KR_YTlaw80
 description: FPL Plugin. News, stocks, etc.
+commands:
+  uploadnews:
+    description: 뉴스의 제목과 내용을 정하고 업로드합니다.
+    usage: "/uploadnews <제목> <내용...>"
+  deletenews:
+    description: 자신이 올린 뉴스를 삭제합니다.
+    usage: "/deletenews <뉴스ID>"
+  checknews:
+    description: 지금까지 나온 뉴스 목록을 확인합니다.
+    usage: "/checknews"
