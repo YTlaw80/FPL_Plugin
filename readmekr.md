@@ -15,3 +15,5 @@
 - setstars : 주식회사의 별점을 조정합니다.
 - checkstats : 주식회사의 정보를 확인합니다.
 - makecompany : 주식회사를 새로 생성합니다.
+- setstartmoney : 기본 돈을 설정합니다.
+- setmoney : 특정 플레이어의 돈을 설정합니다.
