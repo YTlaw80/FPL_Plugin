@@ -14,7 +14,7 @@ import kotlin.math.roundToInt
 
 data class Company(
     val name: String,
-    var stars: Int,
+    var stars: Double,
     var basePrice: Double
 )
 
@@ -46,6 +46,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             "makecompany" -> handleMakeCompany(sender, args)
             "setstartmoney" -> handleSetStartMoney(sender, args)
             "setmoney" -> handleSetMoney(sender, args)
+            "deletecompany" -> handleDeleteCompany(sender, args)
             else -> false
         }
     }
@@ -58,7 +59,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
     ): MutableList<String> {
         val lower = command.name.lowercase()
         return when (lower) {
-            "buy", "sell", "setstars", "checkstats" -> {
+            "buy", "sell", "setstars", "checkstats", "deletecompany" -> {
                 if (args.size == 1) {
                     val prefix = args[0].lowercase()
                     companies.keys
@@ -183,14 +184,14 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         }
 
         if (args.size != 2) {
-            sender.sendMessage("§c사용법: /setstars <회사이름> <별점(1~5)>")
+            sender.sendMessage("§c사용법: /setstars <회사이름> <별점(1~5, 소수 가능)>")
             return true
         }
 
         val companyName = args[0]
-        val stars = args[1].toIntOrNull()
-        if (stars == null || stars !in 1..5) {
-            sender.sendMessage("§c별점은 1~5 사이의 값이어야 합니다.")
+        val stars = args[1].toDoubleOrNull()
+        if (stars == null || stars !in 1.0..5.0) {
+            sender.sendMessage("§c별점은 1~5 사이의 값이어야 합니다. (예: 3.5)")
             return true
         }
 
@@ -203,7 +204,8 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         company.stars = stars
         save()
 
-        Bukkit.broadcastMessage("§6[주식] §e${company.name}§f 의 별점이 §e${stars}★§f 로 변경되었습니다.")
+        val starsDisplay = if (stars == stars.toLong().toDouble()) "${stars.toLong()}" else String.format("%.1f", stars)
+        Bukkit.broadcastMessage("§6[주식] §e${company.name}§f 의 별점이 §e${starsDisplay}★§f 로 변경되었습니다.")
         sender.sendMessage("§a별점을 변경했습니다.")
         return true
     }
@@ -218,7 +220,8 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             sender.sendMessage("§6===== 주식회사 목록 =====")
             companies.values.sortedBy { it.name }.forEach { company ->
                 val price = currentPrice(company)
-                sender.sendMessage("§e${company.name} §7- 별점: §e${company.stars}★ §7현재가: §a${formatMoney(price)}")
+                val starsDisplay = formatStars(company.stars)
+                sender.sendMessage("§e${company.name} §7- 별점: §e${starsDisplay}★ §7현재가: §a${formatMoney(price)}")
             }
             return true
         }
@@ -232,7 +235,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
         val price = currentPrice(company)
         sender.sendMessage("§6===== ${company.name} 정보 =====")
-        sender.sendMessage("§7별점: §e${company.stars}★")
+        sender.sendMessage("§7별점: §e${formatStars(company.stars)}★")
         sender.sendMessage("§7기본 가격: §a${formatMoney(company.basePrice)}")
         sender.sendMessage("§7현재 가격: §a${formatMoney(price)}")
         return true
@@ -261,11 +264,11 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             return true
         }
 
-        val company = Company(name = name, stars = 3, basePrice = basePrice)
+        val company = Company(name = name, stars = 2.5, basePrice = basePrice)
         companies[name] = company
         save()
 
-        sender.sendMessage("§a새로운 주식회사 §e$name§a 가 생성되었습니다. (기본 가격: ${formatMoney(basePrice)}, 초기 별점: 3★)")
+        sender.sendMessage("§a새로운 주식회사 §e$name§a 가 생성되었습니다. (기본 가격: ${formatMoney(basePrice)}, 초기 별점: 2.5★)")
         return true
     }
 
@@ -321,6 +324,46 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         return true
     }
 
+    private fun handleDeleteCompany(sender: CommandSender, args: Array<out String>): Boolean {
+        if (!sender.hasPermission("fpl.stocks.admin")) {
+            sender.sendMessage("§c이 명령어를 사용할 권한이 없습니다.")
+            return true
+        }
+
+        if (args.size != 1) {
+            sender.sendMessage("§c사용법: /deletecompany <회사이름>")
+            return true
+        }
+
+        val companyName = args[0]
+        val company = companies[companyName]
+        if (company == null) {
+            sender.sendMessage("§c해당 이름의 회사를 찾을 수 없습니다.")
+            return true
+        }
+
+        val pricePerStock = currentPrice(company)
+
+        // 보유 중인 모든 플레이어에게 현재가로 환급
+        for ((uuid, playerHoldings) in holdings) {
+            val amount = playerHoldings[companyName] ?: 0
+            if (amount > 0) {
+                val refund = pricePerStock * amount
+                val bal = getBalance(uuid)
+                setBalance(uuid, bal + refund)
+                playerHoldings.remove(companyName)
+                Bukkit.getPlayer(uuid)?.sendMessage("§6[주식] §e${company.name}§f 상장 폐지로 보유 주식 §7${amount}주§f가 현재가 §a${formatMoney(refund)}§f 로 환급되었습니다.")
+            }
+        }
+
+        companies.remove(companyName)
+        save()
+
+        Bukkit.broadcastMessage("§6[주식] §c§l상장 폐지 §f- §e${company.name}§f 이(가) 시장에서 퇴출되었습니다.")
+        sender.sendMessage("§a${company.name} 상장이 폐지되었습니다. 보유자에게 현재가로 환급했습니다.")
+        return true
+    }
+
     // endregion
 
     // region Data helpers
@@ -338,9 +381,9 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         if (companiesSection != null) {
             for (name in companiesSection.getKeys(false)) {
                 val sec = companiesSection.getConfigurationSection(name) ?: continue
-                val stars = sec.getInt("stars", 3)
+                val stars = sec.getDouble("stars", 2.5)
                 val basePrice = sec.getDouble("basePrice", 100.0)
-                companies[name] = Company(name, stars, basePrice)
+                companies[name] = Company(name, stars.coerceIn(1.0, 5.0), basePrice)
             }
         }
 
@@ -407,15 +450,19 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
     }
 
     private fun currentPrice(company: Company): Double {
-        val multiplier = when (company.stars) {
-            1 -> 0.5
-            2 -> 0.8
-            3 -> 1.0
-            4 -> 1.3
-            5 -> 1.7
-            else -> 1.0
+        val s = company.stars.coerceIn(1.0, 5.0)
+        // 1→0.5, 2→0.8, 3→1.0, 4→1.3, 5→1.7 구간별 선형 보간
+        val multiplier = when {
+            s <= 2.0 -> 0.5 + 0.3 * (s - 1.0)
+            s <= 3.0 -> 0.8 + 0.2 * (s - 2.0)
+            s <= 4.0 -> 1.0 + 0.3 * (s - 3.0)
+            else -> 1.3 + 0.4 * (s - 4.0)
         }
         return (company.basePrice * multiplier * 100.0).roundToInt() / 100.0
+    }
+
+    private fun formatStars(stars: Double): String {
+        return if (stars == stars.toLong().toDouble()) "${stars.toLong()}" else String.format("%.1f", stars)
     }
 
     private fun formatMoney(value: Double): String {
