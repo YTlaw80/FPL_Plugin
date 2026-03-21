@@ -763,11 +763,15 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         save()
 
         if (changes.isNotEmpty()) {
-            val summary = changes.joinToString(" §7| ") { (name, pct) ->
-                val color = if (pct >= 0) "§a" else "§c"
-                "§e$name§f $color${String.format("%+.1f", pct)}%"
+            Bukkit.getOnlinePlayers().forEach { p ->
+                if (p.uniqueId !in notificationMuted) {
+                    p.sendMessage("§6[주식 시세]")
+                    changes.forEach { (name, pct) ->
+                        val color = if (pct >= 0) "§a" else "§c"
+                        p.sendMessage(" §7- §e$name§f $color${String.format("%+.1f", pct)}%")
+                    }
+                }
             }
-            broadcastStockNotification("§6[주식 시세] §7$summary")
         }
     }
 
