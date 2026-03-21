@@ -17,3 +17,5 @@
 - makecompany : 주식회사를 새로 생성합니다.
 - setstartmoney : 기본 돈을 설정합니다.
 - setmoney : 특정 플레이어의 돈을 설정합니다.
+
+# 빌드 시 반드시 ./gradlew build 대신 gradle shadowJar 사용
