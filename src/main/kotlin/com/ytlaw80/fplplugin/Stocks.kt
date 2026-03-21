@@ -30,6 +30,8 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
     private val companies: MutableMap<String, Company> = mutableMapOf()
     private val balances: MutableMap<UUID, Double> = mutableMapOf()
     private val holdings: MutableMap<UUID, MutableMap<String, Int>> = mutableMapOf()
+    /** 주식 알림을 끈 플레이어 UUID (시세, 별점 변경, 상장폐지 공지) */
+    private val notificationMuted: MutableSet<UUID> = mutableSetOf()
 
     private var startMoney: Double = 1000.0
 
@@ -67,6 +69,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             "money" -> handleMoney(sender, args)
             "wealthrank" -> handleWealthRank(sender, args)
             "transfer" -> handleTransfer(sender, args)
+            "stocknotify" -> handleStockNotify(sender, args)
             else -> false
         }
     }
@@ -86,6 +89,13 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
                         .filter { it.lowercase().startsWith(prefix) }
                         .sorted()
                         .toMutableList()
+                } else mutableListOf()
+            }
+
+            "stocknotify" -> {
+                if (args.size == 1) {
+                    val prefix = args[0].lowercase()
+                    listOf("켜기", "끄기").filter { it.startsWith(prefix) }.toMutableList()
                 } else mutableListOf()
             }
 
@@ -225,7 +235,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         save()
 
         val starsDisplay = if (stars == stars.toLong().toDouble()) "${stars.toLong()}" else String.format("%.1f", stars)
-        Bukkit.broadcastMessage("§6[주식] §e${company.name}§f 의 별점이 §e${starsDisplay}★§f 로 변경되었습니다.")
+        broadcastStockNotification("§6[주식] §e${company.name}§f 의 별점이 §e${starsDisplay}★§f 로 변경되었습니다.")
         sender.sendMessage("§a별점을 변경했습니다.")
         return true
     }
@@ -440,8 +450,40 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         companies.remove(companyName)
         save()
 
-        Bukkit.broadcastMessage("§6[주식] §c§l상장 폐지 §f- §e${company.name}§f 이(가) 시장에서 퇴출되었습니다.")
+        broadcastStockNotification("§6[주식] §c§l상장 폐지 §f- §e${company.name}§f 이(가) 시장에서 퇴출되었습니다.")
         sender.sendMessage("§a${company.name} 상장이 폐지되었습니다. 보유자에게 현재가로 환급했습니다.")
+        return true
+    }
+
+    private fun handleStockNotify(sender: CommandSender, args: Array<out String>): Boolean {
+        if (sender !is Player) {
+            sender.sendMessage("§c플레이어만 이 명령어를 사용할 수 있습니다.")
+            return true
+        }
+        val uuid = sender.uniqueId
+        val muted = uuid in notificationMuted
+        when (args.getOrNull(0)?.lowercase()) {
+            "끄기", "off", "false" -> {
+                notificationMuted.add(uuid)
+                save()
+                sender.sendMessage("§7주식 알림이 §c꺼짐§7 입니다. (시세, 별점 변경, 상장폐지 공지 비표시)")
+            }
+            "켜기", "on", "true" -> {
+                notificationMuted.remove(uuid)
+                save()
+                sender.sendMessage("§7주식 알림이 §a켜짐§7 입니다.")
+            }
+            null, "" -> {
+                if (muted) {
+                    sender.sendMessage("§7주식 알림: §c꺼짐§7 — §e/주식알림 켜기§7 로 켤 수 있습니다.")
+                } else {
+                    sender.sendMessage("§7주식 알림: §a켜짐§7 — §e/주식알림 끄기§7 로 끌 수 있습니다.")
+                }
+            }
+            else -> {
+                sender.sendMessage("§c사용법: /주식알림 [켜기|끄기]")
+            }
+        }
         return true
     }
 
@@ -588,6 +630,12 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
                 holdings[uuid] = map
             }
         }
+
+        val mutedList = config.getStringList("notificationMuted")
+        notificationMuted.clear()
+        mutedList.forEach { id ->
+            runCatching { UUID.fromString(id) }.getOrNull()?.let { notificationMuted.add(it) }
+        }
     }
 
     fun save() {
@@ -612,6 +660,8 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
                 config.set("holdings.${uuid}.$company", amount)
             }
         }
+
+        config.set("notificationMuted", notificationMuted.map { it.toString() })
 
         if (!plugin.dataFolder.exists()) {
             plugin.dataFolder.mkdirs()
@@ -717,7 +767,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
                 val color = if (pct >= 0) "§a" else "§c"
                 "§e$name§f $color${String.format("%+.1f", pct)}%"
             }
-            Bukkit.broadcastMessage("§6[주식 시세] §7$summary")
+            broadcastStockNotification("§6[주식 시세] §7$summary")
         }
     }
 
@@ -739,6 +789,15 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
     private fun formatMoney(value: Double): String {
         return String.format("%,.2f", value)
+    }
+
+    /** 알림 끈 플레이어 제외하고 공지 발송 (시세, 별점 변경, 상장폐지) */
+    private fun broadcastStockNotification(message: String) {
+        Bukkit.getOnlinePlayers().forEach { p ->
+            if (p.uniqueId !in notificationMuted) {
+                p.sendMessage(message)
+            }
+        }
     }
 
     // endregion
