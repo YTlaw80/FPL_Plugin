@@ -1,0 +1,37 @@
+name: FPL_Plugin
+main: com.ytlaw80.fplplugin.FPLPlugin
+version: 1.0.0
+api-version: "1.21"
+author: KR_YTlaw80
+description: FPL Plugin. News, stocks, etc.
+commands:
+  uploadnews:
+    description: 뉴스의 제목과 내용을 정하고 업로드합니다.
+    usage: "/uploadnews <제목> <내용...>"
+  deletenews:
+    description: 자신이 올린 뉴스를 삭제합니다.
+    usage: "/deletenews <뉴스ID>"
+  checknews:
+    description: 지금까지 나온 뉴스 목록을 확인합니다.
+    usage: "/checknews"
+  buy:
+    description: 주식을 구매합니다.
+    usage: "/buy <회사이름> <수량>"
+  sell:
+    description: 주식을 판매합니다.
+    usage: "/sell <회사이름> <수량>"
+  setstars:
+    description: 주식회사의 별점을 조정합니다.
+    usage: "/setstars <회사이름> <별점(1~5)>"
+  checkstats:
+    description: 주식회사의 정보를 확인합니다.
+    usage: "/checkstats [회사이름]"
+  makecompany:
+    description: 주식회사를 새로 생성합니다.
+    usage: "/makecompany <회사이름> <기본가격>"
+  setstartmoney:
+    description: 기본 돈을 설정합니다.
+    usage: "/setstartmoney <금액>"
+  setmoney:
+    description: 특정 플레이어의 돈을 설정합니다.
+    usage: "/setmoney <플레이어> <금액>"
