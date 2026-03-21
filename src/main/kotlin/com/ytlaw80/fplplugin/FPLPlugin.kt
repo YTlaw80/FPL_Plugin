@@ -37,6 +37,7 @@ class FPLPlugin : JavaPlugin() {
             news.saveNews()
         }
         if (this::stocks.isInitialized) {
+            stocks.cancelPriceTick()
             stocks.save()
         }
         logger.info("FPLPlugin 비활성화됨")

@@ -8,44 +8,44 @@ commands:
   uploadnews:
     description: 뉴스의 제목과 내용을 정하고 업로드합니다.
     usage: "/uploadnews <제목> <내용...>"
-    aliases: [업로드, 뉴스업로드]
+    aliases: [업로드, 뉴스업로드, sbtmdjqfhem]
   deletenews:
     description: 자신이 올린 뉴스를 삭제합니다.
     usage: "/deletenews <뉴스ID>"
-    aliases: [삭제, 뉴스삭제]
+    aliases: [삭제, 뉴스삭제, sbtmrktwp]
   checknews:
     description: 지금까지 나온 뉴스 목록을 확인합니다.
     usage: "/checknews"
-    aliases: [뉴스, 뉴스목록]
+    aliases: [뉴스, 뉴스목록, sbtmahrfhr, sbtm]
   buy:
     description: 주식을 구매합니다.
     usage: "/buy <회사이름> <수량>"
-    aliases: [매수, 구매, 주식구매, 주식매수]
+    aliases: [매수, 구매, 주식구매, 주식매수, rnao, aotn, wntlrrnao, wntlraotn]
   sell:
     description: 주식을 판매합니다.
     usage: "/sell <회사이름> <수량>"
-    aliases: [매입, 판매, 주식판매, 주식매입]
+    aliases: [매입, 판매, 주식판매, 주식매입, vksao, aodlq, wntlrvksao, wntlraodlq]
   setstars:
     description: 주식회사의 별점을 조정합니다.
     usage: "/setstars <회사이름> <별점(1~5)>"
-    aliases: [별점, 주식별점]
+    aliases: [별점, 주식별점, qufwja, wntlrqufwja]
   checkstats:
     description: 주식회사의 정보를 확인합니다.
     usage: "/checkstats, /checkstats <회사이름>"
-    aliases: [정보, 주식정보, 시장, 주식시장]
+    aliases: [정보, 주식정보, 시장, 주식시장, wntlr, wntlrwjdqh, wjdqh, tlwkd, wntlrtlwkd]
   makecompany:
     description: 주식회사를 새로 생성합니다.
     usage: "/makecompany <회사이름> <기본가격>"
-    aliases: [상장등록, 주식회사생성]
+    aliases: [상장등록, 주식회사생성, tkdwkdemdfhr, wntlrghltktodtjd]
   deletecompany:
     description: 주식회사를 상장 폐지(삭제)합니다. 보유자는 현재가로 환급됩니다.
     usage: "/deletecompany <회사이름>"
-    aliases: [상장폐지, 주식삭제, 회사삭제]
+    aliases: [상장폐지, 주식삭제, 회사삭제, tkdwkdvPwl, wntlrtkrwp, ghltktkrwp]
   setstartmoney:
     description: 기본 돈을 설정합니다.
     usage: "/setstartmoney <금액>"
-    aliases: [기본돈, 기본돈설정]
+    aliases: [기본돈, 기본돈설정, rlqhsehs, rlqhsehstjfwjd]
   setmoney:
     description: 특정 플레이어의 돈을 설정합니다.
     usage: "/setmoney <플레이어> <금액>"
-    aliases: [돈설정]
+    aliases: [돈설정, ehstjfwjd]

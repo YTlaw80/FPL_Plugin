@@ -1,7 +1,8 @@
+// 배포용 JAR: ./gradlew shadowJar  (또는 ./gradlew build — shadowJar 포함)
 plugins {
     id "java"
     id "org.jetbrains.kotlin.jvm" version "2.0.0"
-    id 'com.gradleup.shadow' version '8.3.0' 
+    id 'com.gradleup.shadow' version '8.3.0'
 }
 
 group = "com.ytlaw80.fplplugin"
@@ -41,14 +42,13 @@ tasks.withType(Jar).configureEach {
 }
 
 shadowJar {
-    // 생성될 JAR 파일의 이름 설정
-    archiveBaseName.set('FPLPlugin')
-    archiveClassifier.set('')
-    archiveVersion.set('1.0.0')
+    archiveBaseName.set("FPLPlugin")
+    archiveClassifier.set("")
+    archiveVersion.set(project.version.toString())
     configurations = [project.configurations.runtimeClasspath]
+    // Paper 플러그인은 plugin.yml 의 main 으로 로드됨 (실행용 Main-Class 불필요)
+}
 
-    // 실행 가능한 JAR를 위한 메인 클래스 지정
-    manifest {
-        attributes 'Main-Class': 'com.ytlaw80.fplplugin'
-    }
+tasks.named("build") {
+    dependsOn(tasks.named("shadowJar"))
 }

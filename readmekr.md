@@ -18,4 +18,6 @@
 - setstartmoney : 기본 돈을 설정합니다.
 - setmoney : 특정 플레이어의 돈을 설정합니다.
 
-# 빌드 시 반드시 ./gradlew build 대신 gradle shadowJar 사용
+## 빌드
+- 배포용 JAR: `./gradlew shadowJar` → `build/libs/FPLPlugin-1.0.0.jar`
+- `./gradlew build` 를 실행해도 `shadowJar` 가 함께 실행됩니다.

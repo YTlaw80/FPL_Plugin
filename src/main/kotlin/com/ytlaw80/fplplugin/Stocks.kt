@@ -8,14 +8,17 @@ import org.bukkit.command.TabCompleter
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.entity.Player
 import org.bukkit.plugin.java.JavaPlugin
+import org.bukkit.scheduler.BukkitTask
 import java.io.File
 import java.util.UUID
 import kotlin.math.roundToInt
+import kotlin.random.Random
 
 data class Company(
     val name: String,
     var stars: Double,
-    var basePrice: Double
+    var basePrice: Double,
+    var currentPrice: Double
 )
 
 class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
@@ -28,8 +31,17 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
     private var startMoney: Double = 1000.0
 
+    private var priceTickTask: BukkitTask? = null
+    private val PRICE_TICK_INTERVAL_TICKS = 6000L // 5분 = 6000틱
+
     init {
         load()
+        startPriceTick()
+    }
+
+    fun cancelPriceTick() {
+        priceTickTask?.cancel()
+        priceTickTask = null
     }
 
     override fun onCommand(
@@ -264,7 +276,12 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             return true
         }
 
-        val company = Company(name = name, stars = 2.5, basePrice = basePrice)
+        val company = Company(
+            name = name,
+            stars = 2.5,
+            basePrice = basePrice,
+            currentPrice = basePrice * getStarMultiplier(2.5)
+        )
         companies[name] = company
         save()
 
@@ -381,9 +398,10 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         if (companiesSection != null) {
             for (name in companiesSection.getKeys(false)) {
                 val sec = companiesSection.getConfigurationSection(name) ?: continue
-                val stars = sec.getDouble("stars", 2.5)
+                val stars = sec.getDouble("stars", 2.5).coerceIn(1.0, 5.0)
                 val basePrice = sec.getDouble("basePrice", 100.0)
-                companies[name] = Company(name, stars.coerceIn(1.0, 5.0), basePrice)
+                val currentPrice = sec.getDouble("currentPrice", basePrice * getStarMultiplier(stars))
+                companies[name] = Company(name, stars, basePrice, currentPrice)
             }
         }
 
@@ -422,6 +440,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             val path = "companies.$name"
             config.set("$path.stars", company.stars)
             config.set("$path.basePrice", company.basePrice)
+            config.set("$path.currentPrice", company.currentPrice)
         }
 
         for ((uuid, bal) in balances) {
@@ -450,15 +469,68 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
     }
 
     private fun currentPrice(company: Company): Double {
-        val s = company.stars.coerceIn(1.0, 5.0)
-        // 1→0.5, 2→0.8, 3→1.0, 4→1.3, 5→1.7 구간별 선형 보간
-        val multiplier = when {
+        return (company.currentPrice * 100.0).roundToInt() / 100.0
+    }
+
+    /** 별점에 따른 초기 배율 (1→0.5, 2→0.8, 3→1.0, 4→1.3, 5→1.7) */
+    private fun getStarMultiplier(stars: Double): Double {
+        val s = stars.coerceIn(1.0, 5.0)
+        return when {
             s <= 2.0 -> 0.5 + 0.3 * (s - 1.0)
             s <= 3.0 -> 0.8 + 0.2 * (s - 2.0)
             s <= 4.0 -> 1.0 + 0.3 * (s - 3.0)
             else -> 1.3 + 0.4 * (s - 4.0)
         }
-        return (company.basePrice * multiplier * 100.0).roundToInt() / 100.0
+    }
+
+    private fun startPriceTick() {
+        priceTickTask?.cancel()
+        priceTickTask = Bukkit.getScheduler().runTaskTimer(
+            plugin,
+            Runnable { runPriceTick() },
+            PRICE_TICK_INTERVAL_TICKS,
+            PRICE_TICK_INTERVAL_TICKS
+        )
+    }
+
+    private fun runPriceTick() {
+        if (companies.isEmpty()) return
+
+        val changes = mutableListOf<Pair<String, Double>>()
+
+        for (company in companies.values) {
+            val s = company.stars.coerceIn(1.0, 5.0)
+            // 상승 확률: 1★ 30% → 5★ 70% (별점 높을수록 상승 선호)
+            val upProbability = 0.3 + 0.1 * (s - 1.0)
+            // 변동폭: 1★ 0.3%~1% → 5★ 1.5%~4% (별점 높을수록 변동성 큼)
+            val baseVolatility = 0.003 + 0.003 * (s - 1.0)
+            val maxVolatility = 0.01 + 0.0075 * (s - 1.0)
+            val volatility = baseVolatility + Random.nextDouble() * (maxVolatility - baseVolatility)
+            val direction = if (Random.nextDouble() < upProbability) 1.0 else -1.0
+            val change = direction * volatility * (0.5 + Random.nextDouble() * 0.5)
+
+            val oldPrice = company.currentPrice
+            var newPrice = oldPrice * (1.0 + change)
+            val minPrice = company.basePrice * 0.1
+            val maxPrice = company.basePrice * 5.0
+            newPrice = newPrice.coerceIn(minPrice, maxPrice)
+            company.currentPrice = newPrice
+
+            val changePercent = ((newPrice - oldPrice) / oldPrice) * 100
+            if (kotlin.math.abs(changePercent) >= 0.1) {
+                changes.add(company.name to changePercent)
+            }
+        }
+
+        save()
+
+        if (changes.isNotEmpty()) {
+            val summary = changes.joinToString(" §7| ") { (name, pct) ->
+                val color = if (pct >= 0) "§a" else "§c"
+                "§e$name§f $color${String.format("%+.1f", pct)}%"
+            }
+            Bukkit.broadcastMessage("§6[주식 시세] §7$summary")
+        }
     }
 
     private fun formatStars(stars: Double): String {
