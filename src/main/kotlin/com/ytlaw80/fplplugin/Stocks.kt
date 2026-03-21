@@ -18,7 +18,9 @@ data class Company(
     val name: String,
     var stars: Double,
     var basePrice: Double,
-    var currentPrice: Double
+    var currentPrice: Double,
+    /** 자동 시세 반영 직전 가격 (/주식 에서 직전 대비 표시용) */
+    var previousPrice: Double
 )
 
 class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
@@ -33,6 +35,9 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
     private var priceTickTask: BukkitTask? = null
     private val PRICE_TICK_INTERVAL_TICKS = 6000L // 5분 = 6000틱
+
+    /** 다음 시세 반영까지 남은 게임 틱 (표시용, 매 틱 감소) */
+    private var ticksUntilPriceUpdate: Long = PRICE_TICK_INTERVAL_TICKS
 
     init {
         load()
@@ -224,6 +229,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
     private fun handleCheckStats(sender: CommandSender, args: Array<out String>): Boolean {
         if (args.isEmpty()) {
+            sender.sendMessage("§7다음 주가 반영까지: §e${formatTicksAsTimeLeft(ticksUntilPriceUpdate)}")
             if (companies.isEmpty()) {
                 sender.sendMessage("§7등록된 주식회사가 없습니다.")
                 return true
@@ -233,7 +239,8 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             companies.values.sortedBy { it.name }.forEach { company ->
                 val price = currentPrice(company)
                 val starsDisplay = formatStars(company.stars)
-                sender.sendMessage("§e${company.name} §7- 별점: §e${starsDisplay}★ §7현재가: §a${formatMoney(price)}")
+                val diffPart = formatPriceDiffFromPrevious(company)
+                sender.sendMessage("§e${company.name} §7- 별점: §e${starsDisplay}★ §7현재가: §a${formatMoney(price)} §7| $diffPart")
             }
             return true
         }
@@ -247,9 +254,11 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
         val price = currentPrice(company)
         sender.sendMessage("§6===== ${company.name} 정보 =====")
+        sender.sendMessage("§7다음 주가 반영까지: §e${formatTicksAsTimeLeft(ticksUntilPriceUpdate)}")
         sender.sendMessage("§7별점: §e${formatStars(company.stars)}★")
         sender.sendMessage("§7기본 가격: §a${formatMoney(company.basePrice)}")
-        sender.sendMessage("§7현재 가격: §a${formatMoney(price)}")
+        sender.sendMessage("§7직전 시세: §f${formatMoney(roundPrice(company.previousPrice))}")
+        sender.sendMessage("§7현재 가격: §a${formatMoney(price)} §7| ${formatPriceDiffFromPrevious(company)}")
         return true
     }
 
@@ -276,11 +285,13 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             return true
         }
 
+        val initial = basePrice * getStarMultiplier(2.5)
         val company = Company(
             name = name,
             stars = 2.5,
             basePrice = basePrice,
-            currentPrice = basePrice * getStarMultiplier(2.5)
+            currentPrice = initial,
+            previousPrice = initial
         )
         companies[name] = company
         save()
@@ -401,7 +412,8 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
                 val stars = sec.getDouble("stars", 2.5).coerceIn(1.0, 5.0)
                 val basePrice = sec.getDouble("basePrice", 100.0)
                 val currentPrice = sec.getDouble("currentPrice", basePrice * getStarMultiplier(stars))
-                companies[name] = Company(name, stars, basePrice, currentPrice)
+                val previousPrice = sec.getDouble("previousPrice", currentPrice)
+                companies[name] = Company(name, stars, basePrice, currentPrice, previousPrice)
             }
         }
 
@@ -441,6 +453,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             config.set("$path.stars", company.stars)
             config.set("$path.basePrice", company.basePrice)
             config.set("$path.currentPrice", company.currentPrice)
+            config.set("$path.previousPrice", company.previousPrice)
         }
 
         for ((uuid, bal) in balances) {
@@ -468,8 +481,27 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         balances[uuid] = value
     }
 
+    private fun roundPrice(value: Double): Double {
+        return (value * 100.0).roundToInt() / 100.0
+    }
+
     private fun currentPrice(company: Company): Double {
-        return (company.currentPrice * 100.0).roundToInt() / 100.0
+        return roundPrice(company.currentPrice)
+    }
+
+    /** 직전 자동 시세 대비 차액·등락률 (색상 코드 포함) */
+    private fun formatPriceDiffFromPrevious(company: Company): String {
+        val cur = currentPrice(company)
+        val prev = roundPrice(company.previousPrice)
+        val diff = cur - prev
+        if (kotlin.math.abs(diff) < 0.005) {
+            return "§7직전 대비 §f변동 없음"
+        }
+        val pct = if (prev > 1e-9) (diff / prev) * 100.0 else 0.0
+        val color = if (diff >= 0) "§a" else "§c"
+        val moneyPart = if (diff >= 0) "+${formatMoney(diff)}" else formatMoney(diff)
+        val pctPart = String.format("%+.2f", pct)
+        return "§7직전 대비 $color$moneyPart §7($pctPart%)"
     }
 
     /** 별점에 따른 초기 배율 (1→0.5, 2→0.8, 3→1.0, 4→1.3, 5→1.7) */
@@ -485,11 +517,19 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
     private fun startPriceTick() {
         priceTickTask?.cancel()
+        ticksUntilPriceUpdate = PRICE_TICK_INTERVAL_TICKS
+        // 매 틱 카운트다운 → 정확한 '남은 시간' 표시, 6000틱마다 시세 갱신
         priceTickTask = Bukkit.getScheduler().runTaskTimer(
             plugin,
-            Runnable { runPriceTick() },
-            PRICE_TICK_INTERVAL_TICKS,
-            PRICE_TICK_INTERVAL_TICKS
+            Runnable {
+                ticksUntilPriceUpdate--
+                if (ticksUntilPriceUpdate <= 0) {
+                    runPriceTick()
+                    ticksUntilPriceUpdate = PRICE_TICK_INTERVAL_TICKS
+                }
+            },
+            1L,
+            1L
         )
     }
 
@@ -514,6 +554,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             val minPrice = company.basePrice * 0.1
             val maxPrice = company.basePrice * 5.0
             newPrice = newPrice.coerceIn(minPrice, maxPrice)
+            company.previousPrice = oldPrice
             company.currentPrice = newPrice
 
             val changePercent = ((newPrice - oldPrice) / oldPrice) * 100
@@ -535,6 +576,18 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
     private fun formatStars(stars: Double): String {
         return if (stars == stars.toLong().toDouble()) "${stars.toLong()}" else String.format("%.1f", stars)
+    }
+
+    /** 게임 틱을 분·초 문자열로 (20틱 ≈ 1초) */
+    private fun formatTicksAsTimeLeft(ticks: Long): String {
+        if (ticks <= 0) return "곧 반영"
+        val totalSec = ticks / 20
+        val m = totalSec / 60
+        val s = totalSec % 60
+        return when {
+            m > 0 -> "${m}분 ${s}초"
+            else -> "${s}초"
+        }
     }
 
     private fun formatMoney(value: Double): String {
