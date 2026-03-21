@@ -1,5 +1,10 @@
 package com.ytlaw80.fplplugin
 
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.event.ClickEvent
+import net.kyori.adventure.text.event.HoverEvent
+import net.kyori.adventure.text.format.NamedTextColor
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.command.Command
 import org.bukkit.command.CommandExecutor
@@ -242,24 +247,23 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
     private fun handleCheckStats(sender: CommandSender, args: Array<out String>): Boolean {
         if (args.isEmpty()) {
-            sender.sendMessage("§7다음 주가 반영까지: §e${formatTicksAsTimeLeft(ticksUntilPriceUpdate)}")
-            if (companies.isEmpty()) {
-                sender.sendMessage("§7등록된 주식회사가 없습니다.")
-                return true
-            }
-
-            sender.sendMessage("§6===== 주식회사 목록 =====")
-            companies.values.sortedBy { it.name }.forEach { company ->
-                val price = currentPrice(company)
-                val starsDisplay = formatStars(company.stars)
-                val diffPart = formatPriceDiffFromPrevious(company)
-                sender.sendMessage("§e${company.name} §7- 별점: §e${starsDisplay}★ §7현재가: §a${formatMoney(price)} §7| $diffPart")
-            }
+            sendCompanyList(sender, 1)
             return true
         }
 
-        val companyName = args[0]
-        val company = companies[companyName]
+        val firstArg = args[0]
+        // 숫자이면서 회사 이름이 아닌 경우 → 페이지 번호
+        val pageNum = firstArg.toIntOrNull()
+        val sortedCompanies = companies.values.sortedBy { it.name }.toList()
+        val totalPages = if (sortedCompanies.size <= COMPANIES_PER_PAGE) 1
+            else (sortedCompanies.size + COMPANIES_PER_PAGE - 1) / COMPANIES_PER_PAGE
+
+        if (pageNum != null && pageNum in 1..totalPages && !companies.containsKey(firstArg)) {
+            sendCompanyList(sender, pageNum)
+            return true
+        }
+
+        val company = companies[firstArg]
         if (company == null) {
             sender.sendMessage("§c해당 이름의 회사를 찾을 수 없습니다.")
             return true
@@ -273,6 +277,62 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         sender.sendMessage("§7직전 시세: §f${formatMoney(roundPrice(company.previousPrice))}")
         sender.sendMessage("§7현재 가격: §a${formatMoney(price)} §7| ${formatPriceDiffFromPrevious(company)}")
         return true
+    }
+
+    private fun sendCompanyList(sender: CommandSender, page: Int) {
+        sender.sendMessage("§7다음 주가 반영까지: §e${formatTicksAsTimeLeft(ticksUntilPriceUpdate)}")
+        if (companies.isEmpty()) {
+            sender.sendMessage("§7등록된 주식회사가 없습니다.")
+            return
+        }
+
+        val sortedCompanies = companies.values.sortedBy { it.name }.toList()
+        val totalPages = if (sortedCompanies.size <= COMPANIES_PER_PAGE) 1
+            else (sortedCompanies.size + COMPANIES_PER_PAGE - 1) / COMPANIES_PER_PAGE
+        val pageIndex = (page - 1).coerceIn(0, totalPages - 1)
+        val from = pageIndex * COMPANIES_PER_PAGE
+        val to = minOf(from + COMPANIES_PER_PAGE, sortedCompanies.size)
+        val pageCompanies = sortedCompanies.subList(from, to)
+
+        sender.sendMessage("§6===== 주식회사 목록 §7($page/$totalPages 페이지) §6=====")
+        pageCompanies.forEach { company ->
+            val price = currentPrice(company)
+            val starsDisplay = formatStars(company.stars)
+            val diffPart = formatPriceDiffFromPrevious(company)
+            val line = Component.text("  ", NamedTextColor.DARK_GRAY)
+                .append(Component.text(company.name, NamedTextColor.YELLOW)
+                    .clickEvent(ClickEvent.runCommand("/checkstats ${company.name}"))
+                    .hoverEvent(HoverEvent.showText(Component.text("클릭: ${company.name} 정보 보기"))))
+                .append(Component.text(" - 별점: ", NamedTextColor.GRAY))
+                .append(Component.text("${starsDisplay}★", NamedTextColor.YELLOW))
+                .append(Component.text(" 현재가: ", NamedTextColor.GRAY))
+                .append(Component.text(formatMoney(price), NamedTextColor.GREEN))
+                .append(LegacyComponentSerializer.legacySection().deserialize(" | $diffPart"))
+            sender.sendMessage(line)
+        }
+
+        if (totalPages > 1) {
+            val prevComp = if (page > 1) {
+                Component.text("[이전 <] ", NamedTextColor.GRAY)
+                    .clickEvent(ClickEvent.runCommand("/checkstats ${page - 1}"))
+                    .hoverEvent(HoverEvent.showText(Component.text("이전 페이지 보기")))
+            } else {
+                Component.text("[이전 <] ", NamedTextColor.DARK_GRAY)
+            }
+            val pageComp = Component.text("$page / $totalPages 페이지 ", NamedTextColor.GRAY)
+            val nextComp = if (page < totalPages) {
+                Component.text("[다음 >]", NamedTextColor.GRAY)
+                    .clickEvent(ClickEvent.runCommand("/checkstats ${page + 1}"))
+                    .hoverEvent(HoverEvent.showText(Component.text("다음 페이지 보기")))
+            } else {
+                Component.text("[다음 >]", NamedTextColor.DARK_GRAY)
+            }
+            sender.sendMessage(Component.empty().append(prevComp).append(pageComp).append(nextComp))
+        }
+    }
+
+    companion object {
+        private const val COMPANIES_PER_PAGE = 5
     }
 
     private fun handleMakeCompany(sender: CommandSender, args: Array<out String>): Boolean {
