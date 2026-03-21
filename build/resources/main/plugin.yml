@@ -65,3 +65,7 @@ commands:
     description: 주식 시세/별점/상장폐지 알림을 개인적으로 켜거나 끕니다.
     usage: "/stocknotify [켜기|끄기]"
     aliases: [주식알림, wntlrdkffla]
+  setcompanydesc:
+    description: 주식회사에 설명을 붙입니다. (OP 전용)
+    usage: "/setcompanydesc <회사이름> <설명...>"
+    aliases: [회사설명, 주식회사설명, setstockdesc, ghltktjftjfwld]

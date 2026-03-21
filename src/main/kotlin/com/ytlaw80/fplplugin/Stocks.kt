@@ -25,7 +25,9 @@ data class Company(
     var basePrice: Double,
     var currentPrice: Double,
     /** 자동 시세 반영 직전 가격 (/주식 에서 직전 대비 표시용) */
-    var previousPrice: Double
+    var previousPrice: Double,
+    /** 회사 소개 (OP가 /setcompanydesc 로 설정) */
+    var description: String = ""
 )
 
 class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
@@ -75,6 +77,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             "wealthrank" -> handleWealthRank(sender, args)
             "transfer" -> handleTransfer(sender, args)
             "stocknotify" -> handleStockNotify(sender, args)
+            "setcompanydesc" -> handleSetCompanyDesc(sender, args)
             else -> false
         }
     }
@@ -91,6 +94,16 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
                 if (args.size == 1) {
                     val prefix = args[0].lowercase()
                     companies.keys
+                        .filter { it.lowercase().startsWith(prefix) }
+                        .sorted()
+                        .toMutableList()
+                } else mutableListOf()
+            }
+
+            "setcompanydesc" -> {
+                if (args.size == 1) {
+                    val prefix = args[0].lowercase()
+                    if (!sender.isOp) mutableListOf() else companies.keys
                         .filter { it.lowercase().startsWith(prefix) }
                         .sorted()
                         .toMutableList()
@@ -158,6 +171,9 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         val playerHoldings = holdings.getOrPut(sender.uniqueId) { mutableMapOf() }
         playerHoldings[companyName] = (playerHoldings[companyName] ?: 0) + amount
 
+        // 구매량이 많으면 가격 상승 (수요 증가)
+        applyBuyPriceImpact(company, amount)
+
         save()
 
         sender.sendMessage("§a${companyName} 주식 ${amount}개를 구매했습니다. (개당 ${formatMoney(pricePerStock)}, 총 ${formatMoney(totalPrice)})")
@@ -205,6 +221,9 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
         val bal = getBalance(sender.uniqueId)
         setBalance(sender.uniqueId, bal + totalPrice)
+
+        // 판매량이 많으면 가격 하락 (공급 증가)
+        applySellPriceImpact(company, amount)
 
         save()
 
@@ -271,6 +290,9 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
         val price = currentPrice(company)
         sender.sendMessage("§6===== ${company.name} 정보 =====")
+        if (company.description.isNotBlank()) {
+            sender.sendMessage("§7설명: §f${company.description}")
+        }
         sender.sendMessage("§7다음 주가 반영까지: §e${formatTicksAsTimeLeft(ticksUntilPriceUpdate)}")
         sender.sendMessage("§7별점: §e${formatStars(company.stars)}★")
         sender.sendMessage("§7기본 가격: §a${formatMoney(company.basePrice)}")
@@ -299,10 +321,11 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             val price = currentPrice(company)
             val starsDisplay = formatStars(company.stars)
             val diffPart = formatPriceDiffFromPrevious(company)
+            val hoverText = buildHoverForCompany(company)
             val line = Component.text("  ", NamedTextColor.DARK_GRAY)
                 .append(Component.text(company.name, NamedTextColor.YELLOW)
                     .clickEvent(ClickEvent.runCommand("/checkstats ${company.name}"))
-                    .hoverEvent(HoverEvent.showText(Component.text("클릭: ${company.name} 정보 보기"))))
+                    .hoverEvent(HoverEvent.showText(hoverText)))
                 .append(Component.text(" - 별점: ", NamedTextColor.GRAY))
                 .append(Component.text("${starsDisplay}★", NamedTextColor.YELLOW))
                 .append(Component.text(" 현재가: ", NamedTextColor.GRAY))
@@ -331,8 +354,67 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         }
     }
 
+    private fun buildHoverForCompany(company: Company): Component {
+        var c = Component.text("클릭하여 상세 정보 보기", NamedTextColor.GRAY)
+        if (company.description.isNotBlank()) {
+            val desc = if (company.description.length > 200) "${company.description.take(200)}…" else company.description
+            c = c.append(Component.newline()).append(Component.text(desc, NamedTextColor.WHITE))
+        }
+        return c
+    }
+
+    private fun handleSetCompanyDesc(sender: CommandSender, args: Array<out String>): Boolean {
+        if (!sender.isOp) {
+            sender.sendMessage("§c이 명령어는 OP(서버 운영자)만 사용할 수 있습니다.")
+            return true
+        }
+        if (args.size < 2) {
+            sender.sendMessage("§c사용법: /setcompanydesc <회사이름> <설명...>")
+            sender.sendMessage("§7설명을 비우려면: §f/setcompanydesc <회사이름> -")
+            return true
+        }
+        val companyName = args[0]
+        val company = companies[companyName]
+        if (company == null) {
+            sender.sendMessage("§c해당 이름의 회사를 찾을 수 없습니다.")
+            return true
+        }
+        var desc = args.drop(1).joinToString(" ")
+        if (desc == "-") {
+            desc = ""
+        }
+        company.description = desc
+        save()
+        if (desc.isEmpty()) {
+            sender.sendMessage("§a${company.name} 의 설명을 제거했습니다.")
+        } else {
+            sender.sendMessage("§a${company.name} 설명을 설정했습니다.")
+        }
+        return true
+    }
+
+    /** 구매 시 가격 상승 (주당 0.08%, 거래당 최대 5%) */
+    private fun applyBuyPriceImpact(company: Company, amount: Int) {
+        val impact = (amount * PRICE_IMPACT_PER_SHARE).coerceAtMost(MAX_TRADE_IMPACT)
+        company.currentPrice = clampPrice(company, company.currentPrice * (1.0 + impact))
+    }
+
+    /** 판매 시 가격 하락 (주당 0.08%, 거래당 최대 5%) */
+    private fun applySellPriceImpact(company: Company, amount: Int) {
+        val impact = (amount * PRICE_IMPACT_PER_SHARE).coerceAtMost(MAX_TRADE_IMPACT)
+        company.currentPrice = clampPrice(company, company.currentPrice * (1.0 - impact))
+    }
+
+    private fun clampPrice(company: Company, price: Double): Double {
+        val minP = company.basePrice * 0.1
+        val maxP = company.basePrice * 5.0
+        return price.coerceIn(minP, maxP)
+    }
+
     companion object {
         private const val COMPANIES_PER_PAGE = 5
+        private const val PRICE_IMPACT_PER_SHARE = 0.0008  // 주당 0.08% (100주 ≈ 8% 변동)
+        private const val MAX_TRADE_IMPACT = 0.05          // 거래당 최대 5%
     }
 
     private fun handleMakeCompany(sender: CommandSender, args: Array<out String>): Boolean {
@@ -364,7 +446,8 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             stars = 2.5,
             basePrice = basePrice,
             currentPrice = initial,
-            previousPrice = initial
+            previousPrice = initial,
+            description = ""
         )
         companies[name] = company
         save()
@@ -662,7 +745,8 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
                 val basePrice = sec.getDouble("basePrice", 100.0)
                 val currentPrice = sec.getDouble("currentPrice", basePrice * getStarMultiplier(stars))
                 val previousPrice = sec.getDouble("previousPrice", currentPrice)
-                companies[name] = Company(name, stars, basePrice, currentPrice, previousPrice)
+                val description = sec.getString("description") ?: ""
+                companies[name] = Company(name, stars, basePrice, currentPrice, previousPrice, description)
             }
         }
 
@@ -709,6 +793,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             config.set("$path.basePrice", company.basePrice)
             config.set("$path.currentPrice", company.currentPrice)
             config.set("$path.previousPrice", company.previousPrice)
+            config.set("$path.description", company.description)
         }
 
         for ((uuid, bal) in balances) {
