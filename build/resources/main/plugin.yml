@@ -57,3 +57,11 @@ commands:
     description: 플레이어 총 자산(현금+주식) 순위를 표시합니다.
     usage: "/wealthrank"
     aliases: [순위, 부자순위, 자산순위, tnsdnl, rank, ehstnsdnl]
+  transfer:
+    description: 다른 플레이어에게 현금을 송금합니다.
+    usage: "/transfer <플레이어> <금액>"
+    aliases: [송금, 이체, 보내기, thdrma, dlcp, qhsorl]
+  stocknotify:
+    description: 주식 시세/별점/상장폐지 알림을 개인적으로 켜거나 끕니다.
+    usage: "/stocknotify [켜기|끄기]"
+    aliases: [주식알림, wntlrdkffla]
