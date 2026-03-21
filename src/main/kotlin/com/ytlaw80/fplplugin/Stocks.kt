@@ -66,6 +66,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             "deletecompany" -> handleDeleteCompany(sender, args)
             "money" -> handleMoney(sender, args)
             "wealthrank" -> handleWealthRank(sender, args)
+            "transfer" -> handleTransfer(sender, args)
             else -> false
         }
     }
@@ -88,14 +89,14 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
                 } else mutableListOf()
             }
 
-            "setmoney" -> {
+            "setmoney", "transfer" -> {
                 if (args.size == 1) {
                     val prefix = args[0].lowercase()
-                    Bukkit.getOnlinePlayers()
+                    val names = Bukkit.getOnlinePlayers()
                         .map { it.name }
                         .filter { it.lowercase().startsWith(prefix) }
-                        .sorted()
-                        .toMutableList()
+                    val filtered = if (lower == "transfer") names.filter { it != sender.name } else names
+                    filtered.sorted().toMutableList()
                 } else mutableListOf()
             }
 
@@ -351,6 +352,56 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
         sender.sendMessage("§a$targetName 님의 돈이 ${formatMoney(value)} 으로 설정되었습니다.")
         Bukkit.getPlayerExact(targetName)?.sendMessage("§6[주식] §a당신의 돈이 관리자에 의해 ${formatMoney(value)} 으로 설정되었습니다.")
+        return true
+    }
+
+    private fun handleTransfer(sender: CommandSender, args: Array<out String>): Boolean {
+        if (sender !is Player) {
+            sender.sendMessage("§c플레이어만 이 명령어를 사용할 수 있습니다.")
+            return true
+        }
+        if (args.size != 2) {
+            sender.sendMessage("§c사용법: /송금 <플레이어> <금액>")
+            return true
+        }
+
+        val targetName = args[0]
+        val amount = args[1].toDoubleOrNull()
+        if (amount == null || amount <= 0) {
+            sender.sendMessage("§c유효한 금액을 입력하세요. (0보다 커야 합니다)")
+            return true
+        }
+
+        if (targetName.equals(sender.name, ignoreCase = true)) {
+            sender.sendMessage("§c자기 자신에게는 송금할 수 없습니다.")
+            return true
+        }
+
+        val target = Bukkit.getPlayer(targetName)
+        if (target == null) {
+            sender.sendMessage("§c접속 중인 플레이어를 찾을 수 없습니다.")
+            return true
+        }
+        if (target == sender) {
+            sender.sendMessage("§c자기 자신에게는 송금할 수 없습니다.")
+            return true
+        }
+
+        val senderUuid = sender.uniqueId
+        val targetUuid = target.uniqueId
+        val senderBal = getBalance(senderUuid)
+        if (senderBal < amount) {
+            sender.sendMessage("§c잔액이 부족합니다. (보유: ${formatMoney(senderBal)}, 필요: ${formatMoney(amount)})")
+            return true
+        }
+
+        setBalance(senderUuid, senderBal - amount)
+        val targetBal = getBalance(targetUuid)
+        setBalance(targetUuid, targetBal + amount)
+        save()
+
+        sender.sendMessage("§a${target.name} §7님에게 §a${formatMoney(amount)}§7 을(를) 송금했습니다. §8(잔액: ${formatMoney(senderBal - amount)})")
+        target.sendMessage("§6[주식] §e${sender.name}§f 님으로부터 §a${formatMoney(amount)}§f 을(를) 받았습니다. §8(잔액: ${formatMoney(targetBal + amount)})")
         return true
     }
 
