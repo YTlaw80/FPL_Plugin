@@ -64,6 +64,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             "setstartmoney" -> handleSetStartMoney(sender, args)
             "setmoney" -> handleSetMoney(sender, args)
             "deletecompany" -> handleDeleteCompany(sender, args)
+            "money" -> handleMoney(sender, args)
             else -> false
         }
     }
@@ -389,6 +390,49 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
         Bukkit.broadcastMessage("§6[주식] §c§l상장 폐지 §f- §e${company.name}§f 이(가) 시장에서 퇴출되었습니다.")
         sender.sendMessage("§a${company.name} 상장이 폐지되었습니다. 보유자에게 현재가로 환급했습니다.")
+        return true
+    }
+
+    private fun handleMoney(sender: CommandSender, args: Array<out String>): Boolean {
+        if (sender !is Player) {
+            sender.sendMessage("§c플레이어만 이 명령어를 사용할 수 있습니다.")
+            return true
+        }
+        if (args.isNotEmpty()) {
+            sender.sendMessage("§c사용법: /money")
+            return true
+        }
+
+        val uuid = sender.uniqueId
+        val cash = getBalance(uuid)
+        val playerHoldings = holdings[uuid]
+
+        sender.sendMessage("§6===== §e내 지갑 §6=====")
+        sender.sendMessage("§7현금: §a${formatMoney(cash)}")
+
+        if (playerHoldings == null || playerHoldings.isEmpty()) {
+            sender.sendMessage("§7보유 주식: §f없음")
+            sender.sendMessage("§7총 자산: §a${formatMoney(cash)}")
+            return true
+        }
+
+        sender.sendMessage("§7보유 주식:")
+        var stockTotal = 0.0
+        for ((companyName, qty) in playerHoldings.entries.sortedBy { it.key }) {
+            val company = companies[companyName]
+            if (company == null) {
+                sender.sendMessage(" §7- §e$companyName §7${qty}주 §c(회사 정보 없음)")
+                continue
+            }
+            val unit = currentPrice(company)
+            val sub = unit * qty
+            stockTotal += sub
+            sender.sendMessage(" §7- §e$companyName §7${qty}주 §8× §f${formatMoney(unit)} §7→ §a${formatMoney(sub)}")
+        }
+
+        sender.sendMessage("§7주식 평가액 합계: §a${formatMoney(stockTotal)}")
+        val grand = cash + stockTotal
+        sender.sendMessage("§6총 자산 §7(현금+주식): §a§l${formatMoney(grand)}")
         return true
     }
 
