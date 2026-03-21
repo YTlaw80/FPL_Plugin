@@ -65,6 +65,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             "setmoney" -> handleSetMoney(sender, args)
             "deletecompany" -> handleDeleteCompany(sender, args)
             "money" -> handleMoney(sender, args)
+            "wealthrank" -> handleWealthRank(sender, args)
             else -> false
         }
     }
@@ -434,6 +435,57 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         val grand = cash + stockTotal
         sender.sendMessage("§6총 자산 §7(현금+주식): §a§l${formatMoney(grand)}")
         return true
+    }
+
+    private fun handleWealthRank(sender: CommandSender, args: Array<out String>): Boolean {
+        if (args.isNotEmpty()) {
+            sender.sendMessage("§c사용법: /순위")
+            return true
+        }
+
+        val uuids = (balances.keys + holdings.keys).toSet()
+        val rows = uuids.map { uuid ->
+            val cash = balances[uuid] ?: startMoney
+            val stock = computeStockValue(uuid)
+            Triple(uuid, cash + stock, cash to stock)
+        }.sortedByDescending { it.second }
+
+        sender.sendMessage("§6===== §e총 자산 순위 §7(현금+주식) §6=====")
+        if (rows.isEmpty()) {
+            sender.sendMessage("§7아직 기록된 플레이어가 없습니다.")
+            return true
+        }
+
+        sender.sendMessage("§7총 §f${rows.size}§7명")
+        rows.forEachIndexed { index, (uuid, total, cashStock) ->
+            val rank = index + 1
+            val (cash, stock) = cashStock
+            val name = Bukkit.getOfflinePlayer(uuid).name
+                ?: "§7${uuid.toString().substring(0, 8)}…"
+            val isSelf = sender is Player && sender.uniqueId == uuid
+            val rankPrefix = when (rank) {
+                1 -> "§6§l"
+                2 -> "§7§l"
+                3 -> "§c§l"
+                else -> "§e"
+            }
+            val selfMark = if (isSelf) " §6«나»" else ""
+            sender.sendMessage(
+                "$rankPrefix${rank}위 §f$name$selfMark §7- §a${formatMoney(total)} §8(현금 ${formatMoney(cash)} · 주식 ${formatMoney(stock)})"
+            )
+        }
+        return true
+    }
+
+    /** 순위 계산용: 맵에 없으면 기본 시작 자금 (getOrPut 사용 안 함) */
+    private fun computeStockValue(uuid: UUID): Double {
+        val map = holdings[uuid] ?: return 0.0
+        var sum = 0.0
+        for ((companyName, qty) in map) {
+            val c = companies[companyName] ?: continue
+            sum += currentPrice(c) * qty
+        }
+        return sum
     }
 
     // endregion

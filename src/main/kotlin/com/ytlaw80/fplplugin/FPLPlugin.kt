@@ -13,7 +13,7 @@ class FPLPlugin : JavaPlugin() {
         }
 
         stocks = Stocks(this)
-            listOf("buy", "sell", "setstars", "checkstats", "makecompany", "deletecompany", "setstartmoney", "setmoney", "money").forEach { cmd ->
+            listOf("buy", "sell", "setstars", "checkstats", "makecompany", "deletecompany", "setstartmoney", "setmoney", "money", "wealthrank").forEach { cmd ->
             getCommand(cmd)?.let {
                 it.setExecutor(stocks)
                 it.tabCompleter = stocks

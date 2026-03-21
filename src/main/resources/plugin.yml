@@ -12,7 +12,7 @@ commands:
   deletenews:
     description: 자신이 올린 뉴스를 삭제합니다.
     usage: "/deletenews <뉴스ID>"
-    aliases: [삭제, 뉴스삭제, sbtmrktwp, newsdelete]
+    aliases: [삭제, 뉴스삭제, sbtmtkrwp, newsdelete]
   checknews:
     description: 지금까지 나온 뉴스 목록을 확인합니다.
     usage: "/checknews"
@@ -53,3 +53,7 @@ commands:
     description: 내 지갑 잔액과 주식 보유 현황을 확인합니다.
     usage: "/money"
     aliases: [돈, 내지갑, 잔액, ehs, wksdor]
+  wealthrank:
+    description: 플레이어 총 자산(현금+주식) 순위를 표시합니다.
+    usage: "/wealthrank"
+    aliases: [순위, 부자순위, 자산순위, tnsdnl, rank, ehstnsdnl]
