@@ -18,7 +18,6 @@ data class Station(
     val name: String,
     val color: String,      // 역 색깔 (Minecraft § 코드)
     val line: String,       // 노선(선) 이름
-    val direction: String,
     val district: String
 )
 
@@ -57,7 +56,6 @@ class Routes(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
                     name = j.name.ifBlank { "(이름 없음)" },
                     color = colorVal,
                     line = lineVal,
-                    direction = j.direction.ifBlank { "-" },
                     district = j.district.ifBlank { "-" }
                 )
             }
@@ -71,7 +69,6 @@ class Routes(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         val name: String = "",
         val color: String = "",   // 역 색깔 (§ 코드)
         val line: String = "",    // 노선 이름
-        val direction: String = "",
         val district: String = ""
     )
 
@@ -142,7 +139,7 @@ class Routes(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         if (stations.isEmpty()) {
             sender.sendMessage("§7등록된 노선이 없습니다.")
             sender.sendMessage("§7§oplugin_data_folder/routes.json §7파일을 생성해 주세요.")
-            sender.sendMessage("§7형식: [{\"name\":\"역이름\",\"color\":\"§a\",\"line\":\"2호선\",\"direction\":\"방향\",\"district\":\"행정구역\"}, ...]")
+            sender.sendMessage("§7형식: [{\"name\":\"역이름\",\"color\":\"§a\",\"line\":\"2호선\",\"district\":\"행정구역\"}, ...]")
             return
         }
 
@@ -164,13 +161,11 @@ class Routes(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
                     .hoverEvent(HoverEvent.showText(
                         Component.text("역: ", NamedTextColor.GRAY).append(Component.text(station.name, NamedTextColor.WHITE))
                             .append(Component.text("\n선: ", NamedTextColor.GRAY)).append(lineComp)
-                            .append(Component.text("\n방향: ", NamedTextColor.GRAY)).append(Component.text(station.direction, NamedTextColor.WHITE))
                             .append(Component.text("\n행정구역: ", NamedTextColor.GRAY)).append(Component.text(station.district, NamedTextColor.WHITE))
                     )))
                 .append(Component.text(" §7| ", NamedTextColor.GRAY))
                 .append(lineComp)
                 .append(Component.text(" §7| ", NamedTextColor.GRAY))
-                .append(Component.text(station.direction, NamedTextColor.GRAY))
                 .append(Component.text(" §7| ", NamedTextColor.GRAY))
                 .append(Component.text(station.district, NamedTextColor.GRAY))
             sender.sendMessage(line)
