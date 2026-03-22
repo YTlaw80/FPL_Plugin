@@ -5,6 +5,10 @@ api-version: "1.21"
 author: KR_YTlaw80
 description: FPL Plugin. News, stocks, etc.
 commands:
+  help:
+    description: FPL 플러그인 명령어 도움말을 표시합니다.
+    usage: "/help [페이지]"
+    aliases: [도움말, fplhelp, 도움]
   uploadnews:
     description: 뉴스의 제목과 내용을 정하고 업로드합니다.
     usage: "/uploadnews <제목> <내용...>"
@@ -41,6 +45,10 @@ commands:
     description: 주식회사를 상장 폐지(삭제)합니다. 보유자는 현재가로 환급됩니다.
     usage: "/deletecompany <회사이름>"
     aliases: [상장폐지, 주식삭제, 회사삭제, tkdwkdvPwl, wntlrtkrwp, ghltktkrwp]
+  setcompanydesc:
+    description: 주식회사에 설명을 붙입니다. (OP 전용)
+    usage: "/setcompanydesc <회사이름> <설명...>"
+    aliases: [회사설명, 주식회사설명, 설명, setstockdesc, ghltktjftjfwld, tjfaud,]
   setstartmoney:
     description: 기본 돈을 설정합니다.
     usage: "/setstartmoney <금액>"
@@ -56,7 +64,7 @@ commands:
   wealthrank:
     description: 플레이어 총 자산(현금+주식) 순위를 표시합니다.
     usage: "/wealthrank"
-    aliases: [순위, 부자순위, 자산순위, tnsdnl, rank, ehstnsdnl]
+    aliases: [순위, 부자순위, 자산순위, 랭킹, tnsdnl, rank, ehstnsdnl, ranking, fodzld]
   transfer:
     description: 다른 플레이어에게 현금을 송금합니다.
     usage: "/transfer <플레이어> <금액>"
@@ -65,7 +73,4 @@ commands:
     description: 주식·뉴스 알림을 개별적으로 켜거나 끕니다. (채팅 클릭으로 설정)
     usage: "/notifysettings [주식|뉴스] [설정값]"
     aliases: [알림설정, 알림, stocknotify, newsnotify, dkfflatjfwjd, dkffla]
-  setcompanydesc:
-    description: 주식회사에 설명을 붙입니다. (OP 전용)
-    usage: "/setcompanydesc <회사이름> <설명...>"
-    aliases: [회사설명, 주식회사설명, setstockdesc, ghltktjftjfwld]
+  

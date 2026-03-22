@@ -300,11 +300,11 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
         val price = currentPrice(company)
         sender.sendMessage("§6===== ${company.name} 정보 =====")
+        sender.sendMessage("§7다음 주가 반영까지: §e${formatTicksAsTimeLeft(ticksUntilPriceUpdate)}")
+        sender.sendMessage("§7별점: §e${formatStars(company.stars)}★")
         if (company.description.isNotBlank()) {
             sender.sendMessage("§7설명: §f${company.description}")
         }
-        sender.sendMessage("§7다음 주가 반영까지: §e${formatTicksAsTimeLeft(ticksUntilPriceUpdate)}")
-        sender.sendMessage("§7별점: §e${formatStars(company.stars)}★")
         sender.sendMessage("§7기본 가격: §a${formatMoney(company.basePrice)}")
         sender.sendMessage("§7직전 시세: §f${formatMoney(roundPrice(company.previousPrice))}")
         sender.sendMessage("§7현재 가격: §a${formatMoney(price)} §7| ${formatPriceDiffFromPrevious(company)}")
@@ -333,10 +333,10 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             val diffPart = formatPriceDiffFromPrevious(company)
             val hoverText = buildHoverForCompany(company)
             val line = Component.text("  ", NamedTextColor.DARK_GRAY)
-                .append(Component.text(company.name, NamedTextColor.YELLOW)
+                .append(Component.text(company.name, NamedTextColor.AQUA)
                     .clickEvent(ClickEvent.runCommand("/checkstats ${company.name}"))
                     .hoverEvent(HoverEvent.showText(hoverText)))
-                .append(Component.text("${starsDisplay}★", NamedTextColor.YELLOW))
+                .append(Component.text("(${starsDisplay}★)", NamedTextColor.YELLOW))
                 .append(Component.text(" 현재가: ", NamedTextColor.GRAY))
                 .append(Component.text(formatMoney(price), NamedTextColor.GREEN))
                 .append(LegacyComponentSerializer.legacySection().deserialize(" | $diffPart"))

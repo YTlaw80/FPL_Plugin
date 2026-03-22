@@ -6,11 +6,18 @@ class FPLPlugin : JavaPlugin() {
 
     private lateinit var news: News
     private lateinit var stocks: Stocks
+    private lateinit var help: Help
 
     override fun onEnable() {
         if (!dataFolder.exists()) {
             dataFolder.mkdirs()
         }
+
+        help = Help(this)
+        getCommand("help")?.let {
+            it.setExecutor(help)
+            it.tabCompleter = help
+        } ?: logger.warning("명령어 /help 가 plugin.yml 에 정의되어 있지 않습니다.")
 
         stocks = Stocks(this)
             listOf("buy", "sell", "setstars", "checkstats", "makecompany", "deletecompany", "setstartmoney", "setmoney", "money", "wealthrank", "transfer", "notifysettings", "setcompanydesc").forEach { cmd ->
