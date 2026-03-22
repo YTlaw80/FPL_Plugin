@@ -25,27 +25,27 @@
     "color": "§a",
     "line": "1호선",
     "direction": "종점",
-    "district": "남산동"
+    "district": "푸드팰리스동"
   },
   {
     "name": "힐스테이트",
     "color": "§1",
     "line": "1호선",
     "direction": "바운스파크방향",
-    "district": "남산동"
+    "district": "힐스동"
   },
   {
     "name": "라떼",
     "color": "§b",
     "line": "1호선",
     "direction": "바운스파크방향",
-    "district": "푸드동"
+    "district": "힐스동"
   },
   {
     "name": "해운대",
     "color": "§6",
     "line": "1호선",
     "direction": "바운스파크방향",
-    "district": "푸드동"
+    "district": "힐스동"
   }
 ]
