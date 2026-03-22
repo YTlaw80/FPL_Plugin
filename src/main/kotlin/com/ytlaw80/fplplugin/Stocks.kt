@@ -19,6 +19,12 @@ import java.util.UUID
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
+data class NotificationPref(
+    var stock: Boolean = true,
+    /** "chat" | "actionbar" | "off" — 기본값 채팅 */
+    var newsMode: String = "chat"
+)
+
 data class Company(
     val name: String,
     var stars: Double,
@@ -37,8 +43,8 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
     private val companies: MutableMap<String, Company> = mutableMapOf()
     private val balances: MutableMap<UUID, Double> = mutableMapOf()
     private val holdings: MutableMap<UUID, MutableMap<String, Int>> = mutableMapOf()
-    /** 주식 알림을 끈 플레이어 UUID (시세, 별점 변경, 상장폐지 공지) */
-    private val notificationMuted: MutableSet<UUID> = mutableSetOf()
+    /** 알림 설정 (주식: 시세/별점/상장폐지, 뉴스: 업로드 공지) */
+    private val notificationPrefs: MutableMap<UUID, NotificationPref> = mutableMapOf()
 
     private var startMoney: Double = 1000.0
 
@@ -76,7 +82,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             "money" -> handleMoney(sender, args)
             "wealthrank" -> handleWealthRank(sender, args)
             "transfer" -> handleTransfer(sender, args)
-            "stocknotify" -> handleStockNotify(sender, args)
+            "notifysettings", "stocknotify" -> handleNotifySettings(sender, args)
             "setcompanydesc" -> handleSetCompanyDesc(sender, args)
             else -> false
         }
@@ -110,10 +116,14 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
                 } else mutableListOf()
             }
 
-            "stocknotify" -> {
-                if (args.size == 1) {
-                    val prefix = args[0].lowercase()
-                    listOf("켜기", "끄기").filter { it.startsWith(prefix) }.toMutableList()
+            "notifysettings", "stocknotify" -> {
+                if (args.size <= 2) {
+                    val subPrefix = if (args.size >= 2) args[1].lowercase() else args.getOrNull(0)?.lowercase() ?: ""
+                    when (args.getOrNull(0)?.lowercase()) {
+                        "stock", "주식" -> listOf("on", "off", "켜기", "끄기").filter { it.startsWith(subPrefix) }
+                        "news", "뉴스" -> listOf("chat", "actionbar", "off", "채팅", "액션바", "끄기").filter { it.startsWith(subPrefix) }
+                        else -> listOf("stock", "news", "주식", "뉴스").filter { it.startsWith(subPrefix) }
+                    }.toMutableList()
                 } else mutableListOf()
             }
 
@@ -326,7 +336,6 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
                 .append(Component.text(company.name, NamedTextColor.YELLOW)
                     .clickEvent(ClickEvent.runCommand("/checkstats ${company.name}"))
                     .hoverEvent(HoverEvent.showText(hoverText)))
-                .append(Component.text(" - 별점: ", NamedTextColor.GRAY))
                 .append(Component.text("${starsDisplay}★", NamedTextColor.YELLOW))
                 .append(Component.text(" 현재가: ", NamedTextColor.GRAY))
                 .append(Component.text(formatMoney(price), NamedTextColor.GREEN))
@@ -336,7 +345,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
         if (totalPages > 1) {
             val prevComp = if (page > 1) {
-                Component.text("[이전 <] ", NamedTextColor.GRAY)
+                Component.text("[이전 <] ", NamedTextColor.WHITE)
                     .clickEvent(ClickEvent.runCommand("/checkstats ${page - 1}"))
                     .hoverEvent(HoverEvent.showText(Component.text("이전 페이지 보기")))
             } else {
@@ -344,7 +353,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             }
             val pageComp = Component.text("$page / $totalPages 페이지 ", NamedTextColor.GRAY)
             val nextComp = if (page < totalPages) {
-                Component.text("[다음 >]", NamedTextColor.GRAY)
+                Component.text("[다음 >]", NamedTextColor.WHITE)
                     .clickEvent(ClickEvent.runCommand("/checkstats ${page + 1}"))
                     .hoverEvent(HoverEvent.showText(Component.text("다음 페이지 보기")))
             } else {
@@ -598,36 +607,90 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         return true
     }
 
-    private fun handleStockNotify(sender: CommandSender, args: Array<out String>): Boolean {
+    private fun getNotificationPref(uuid: UUID): NotificationPref {
+        return notificationPrefs.getOrPut(uuid) { NotificationPref() }
+    }
+
+    /** 뉴스 알림 모드: "chat" | "actionbar" | "off" (News에서 호출) */
+    fun getNewsNotificationMode(uuid: UUID): String =
+        getNotificationPref(uuid).newsMode.let { if (it in listOf("chat", "actionbar", "off")) it else "chat" }
+
+    private fun wantsStockNotification(uuid: UUID): Boolean = getNotificationPref(uuid).stock
+
+    private fun handleNotifySettings(sender: CommandSender, args: Array<out String>): Boolean {
         if (sender !is Player) {
             sender.sendMessage("§c플레이어만 이 명령어를 사용할 수 있습니다.")
             return true
         }
         val uuid = sender.uniqueId
-        val muted = uuid in notificationMuted
-        when (args.getOrNull(0)?.lowercase()) {
-            "끄기", "off", "false" -> {
-                notificationMuted.add(uuid)
-                save()
-                sender.sendMessage("§7주식 알림이 §c꺼짐§7 입니다. (시세, 별점 변경, 상장폐지 공지 비표시)")
-            }
-            "켜기", "on", "true" -> {
-                notificationMuted.remove(uuid)
-                save()
-                sender.sendMessage("§7주식 알림이 §a켜짐§7 입니다.")
-            }
-            null, "" -> {
-                if (muted) {
-                    sender.sendMessage("§7주식 알림: §c꺼짐§7 — §e/주식알림 켜기§7 로 켤 수 있습니다.")
-                } else {
-                    sender.sendMessage("§7주식 알림: §a켜짐§7 — §e/주식알림 끄기§7 로 끌 수 있습니다.")
+        val pref = getNotificationPref(uuid)
+
+        when {
+            args.size >= 2 -> {
+                val type = args[0].lowercase()
+                val on = args[1].lowercase() in listOf("on", "켜기", "true")
+                when (type) {
+                    "stock", "주식" -> {
+                        pref.stock = on
+                        save()
+                        sender.sendMessage("§7주식 알림: §${if (on) "a켜짐" else "c꺼짐"}§7 입니다.")
+                    }
+                    "news", "뉴스" -> {
+                        val mode = when (args[1].lowercase()) {
+                            "chat", "채팅" -> "chat"
+                            "actionbar", "액션바" -> "actionbar"
+                            "off", "끄기" -> "off"
+                            else -> pref.newsMode
+                        }
+                        pref.newsMode = mode
+                        save()
+                        val modeStr = when (mode) {
+                            "chat" -> "§a채팅"
+                            "actionbar" -> "§e액션바"
+                            else -> "§c끄기"
+                        }
+                        sender.sendMessage("§7뉴스 알림: $modeStr§7 입니다.")
+                    }
+                    else -> sendNotifySettingsUi(sender)
                 }
             }
-            else -> {
-                sender.sendMessage("§c사용법: /주식알림 [켜기|끄기]")
-            }
+            else -> sendNotifySettingsUi(sender)
         }
         return true
+    }
+
+    private fun sendNotifySettingsUi(sender: Player) {
+        val uuid = sender.uniqueId
+        val pref = getNotificationPref(uuid)
+        sender.sendMessage("§6===== §e알림 설정 §6=====")
+        sender.sendMessage("§7클릭하여 켜기/끄기 전환")
+
+        val stockLine = Component.text("주식 알림 §7(시세, 별점, 상장폐지): ", NamedTextColor.GRAY)
+            .append(if (pref.stock) {
+                Component.text("[켜짐] ", NamedTextColor.GREEN)
+                    .clickEvent(ClickEvent.runCommand("/notifysettings stock off"))
+                    .hoverEvent(HoverEvent.showText(Component.text("클릭하여 끄기")))
+            } else {
+                Component.text("[꺼짐] ", NamedTextColor.RED)
+                    .clickEvent(ClickEvent.runCommand("/notifysettings stock on"))
+                    .hoverEvent(HoverEvent.showText(Component.text("클릭하여 켜기")))
+            })
+        sender.sendMessage(stockLine)
+
+        val newsLine = Component.text("뉴스 알림 §7(업로드 시): ", NamedTextColor.GRAY)
+            .append(buildNewsModeButton("채팅", "chat", pref.newsMode))
+            .append(Component.text(" ", NamedTextColor.DARK_GRAY))
+            .append(buildNewsModeButton("액션바", "actionbar", pref.newsMode))
+            .append(Component.text(" ", NamedTextColor.DARK_GRAY))
+            .append(buildNewsModeButton("끄기", "off", pref.newsMode))
+        sender.sendMessage(newsLine)
+    }
+
+    private fun buildNewsModeButton(label: String, mode: String, current: String): Component {
+        val isSelected = current == mode
+        return Component.text("[$label]", if (isSelected) NamedTextColor.GREEN else NamedTextColor.GRAY)
+            .clickEvent(ClickEvent.runCommand("/notifysettings news $mode"))
+            .hoverEvent(HoverEvent.showText(Component.text(if (isSelected) "현재 선택됨" else "클릭하여 $label 으로 변경")))
     }
 
     private fun handleMoney(sender: CommandSender, args: Array<out String>): Boolean {
@@ -775,10 +838,30 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             }
         }
 
+        val prefsSec = config.getConfigurationSection("notificationPrefs")
+        if (prefsSec != null) {
+            for (id in prefsSec.getKeys(false)) {
+                val uuid = runCatching { UUID.fromString(id) }.getOrNull() ?: continue
+                val sec = prefsSec.getConfigurationSection(id) ?: continue
+                val newsVal = sec.get("news")
+                val newsMode = when {
+                    newsVal is Boolean -> if (newsVal) "chat" else "off"
+                    newsVal is String && newsVal in listOf("chat", "actionbar", "off") -> newsVal
+                    else -> "chat"
+                }
+                notificationPrefs[uuid] = NotificationPref(
+                    stock = sec.getBoolean("stock", true),
+                    newsMode = newsMode
+                )
+            }
+        }
         val mutedList = config.getStringList("notificationMuted")
-        notificationMuted.clear()
-        mutedList.forEach { id ->
-            runCatching { UUID.fromString(id) }.getOrNull()?.let { notificationMuted.add(it) }
+        if (mutedList.isNotEmpty()) {
+            mutedList.forEach { id ->
+                runCatching { UUID.fromString(id) }.getOrNull()?.let { uuid ->
+                    notificationPrefs.getOrPut(uuid) { NotificationPref() }.stock = false
+                }
+            }
         }
     }
 
@@ -806,7 +889,14 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             }
         }
 
-        config.set("notificationMuted", notificationMuted.map { it.toString() })
+        if (notificationPrefs.isNotEmpty()) {
+            val prefsSec = config.createSection("notificationPrefs")
+            for ((uuid, pref) in notificationPrefs) {
+                val sec = prefsSec.createSection(uuid.toString())
+                sec.set("stock", pref.stock)
+                sec.set("news", pref.newsMode)
+            }
+        }
 
         if (!plugin.dataFolder.exists()) {
             plugin.dataFolder.mkdirs()
@@ -909,7 +999,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
         if (changes.isNotEmpty()) {
             Bukkit.getOnlinePlayers().forEach { p ->
-                if (p.uniqueId !in notificationMuted) {
+                if (wantsStockNotification(p.uniqueId)) {
                     p.sendMessage("§6[주식 시세]")
                     changes.forEach { (name, pct) ->
                         val color = if (pct >= 0) "§a" else "§c"
@@ -943,7 +1033,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
     /** 알림 끈 플레이어 제외하고 공지 발송 (시세, 별점 변경, 상장폐지) */
     private fun broadcastStockNotification(message: String) {
         Bukkit.getOnlinePlayers().forEach { p ->
-            if (p.uniqueId !in notificationMuted) {
+            if (wantsStockNotification(p.uniqueId)) {
                 p.sendMessage(message)
             }
         }

@@ -13,14 +13,14 @@ class FPLPlugin : JavaPlugin() {
         }
 
         stocks = Stocks(this)
-            listOf("buy", "sell", "setstars", "checkstats", "makecompany", "deletecompany", "setstartmoney", "setmoney", "money", "wealthrank", "transfer", "stocknotify", "setcompanydesc").forEach { cmd ->
+            listOf("buy", "sell", "setstars", "checkstats", "makecompany", "deletecompany", "setstartmoney", "setmoney", "money", "wealthrank", "transfer", "notifysettings", "setcompanydesc").forEach { cmd ->
             getCommand(cmd)?.let {
                 it.setExecutor(stocks)
                 it.tabCompleter = stocks
             } ?: logger.warning("명령어 /$cmd 가 plugin.yml 에 정의되어 있지 않습니다.")
         }
 
-        news = News(this)
+        news = News(this, stocks)
 
         listOf("uploadnews", "deletenews", "checknews").forEach { cmd ->
             getCommand(cmd)?.let {

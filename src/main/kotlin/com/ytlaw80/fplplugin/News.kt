@@ -1,5 +1,6 @@
 package com.ytlaw80.fplplugin
 
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.command.Command
 import org.bukkit.command.CommandExecutor
@@ -19,7 +20,7 @@ data class NewsItem(
     val timestamp: Long
 )
 
-class News(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
+class News(private val plugin: JavaPlugin, private val stocks: Stocks) : CommandExecutor, TabCompleter {
 
     private val newsFile: File = File(plugin.dataFolder, "news.yml")
     private val newsList: MutableList<NewsItem> = mutableListOf()
@@ -87,8 +88,15 @@ class News(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         saveNews()
 
         sender.sendMessage("§a뉴스가 업로드되었습니다! ID: §e$id")
-        Bukkit.getOnlinePlayers().forEach {
-            it.sendMessage("§6[뉴스] §e${item.title} §7- ${item.author}")
+
+        val newsChatMsg = "§6[뉴스] §e${item.title} §7- ${item.author}"
+        val newsActionBarMsg = LegacyComponentSerializer.legacySection().deserialize(newsChatMsg)
+        Bukkit.getOnlinePlayers().forEach { p ->
+            when (stocks.getNewsNotificationMode(p.uniqueId)) {
+                "chat" -> p.sendMessage(newsChatMsg)
+                "actionbar" -> p.sendActionBar(newsActionBarMsg)
+                else -> {}
+            }
         }
         return true
     }
