@@ -14,8 +14,7 @@
   {
     "name": "푸드",
     "color": "§c",
-    "line": "1호선",
-    "direction": "바운스파크방향",
+    "line": "1호선, 2호선",
     "district": "푸드동"
   },
   {
@@ -41,5 +40,11 @@
     "color": "§6",
     "line": "1호선",
     "district": "힐스동"
+  },
+  {
+    "name": "국회",
+    "color": "§d",
+    "line": "2호선",
+    "district": "푸드팰리스동"
   }
 ]

@@ -150,8 +150,12 @@ class Routes(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         }
 
         list.subList(from, to).forEach { station ->
-            // 1호선은 연두색(§a)으로 고정 표기, 그 외는 역 색깔 사용
-            val lineColor = if (station.line == "1호선") "§a" else station.color
+            // 1호선 연두색(§a), 2호선 §6 고정 표기, 그 외는 역 색깔 사용
+            val lineColor = when (station.line) {
+                "1호선" -> "§a"
+                "2호선" -> "§6"
+                else -> station.color
+            }
             val lineComp = if (lineColor.contains("§")) {
                 LegacyComponentSerializer.legacySection().deserialize(lineColor + station.line)
             } else {
