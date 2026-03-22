@@ -150,16 +150,23 @@ class Routes(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         }
 
         list.subList(from, to).forEach { station ->
-            // 역 색깔을 노선명에 적용하여 표시
-            val lineComp = if (station.color.contains("§")) {
-                LegacyComponentSerializer.legacySection().deserialize(station.color + station.line)
+            // 1호선은 연두색(§a)으로 고정 표기, 그 외는 역 색깔 사용
+            val lineColor = if (station.line == "1호선") "§a" else station.color
+            val lineComp = if (lineColor.contains("§")) {
+                LegacyComponentSerializer.legacySection().deserialize(lineColor + station.line)
             } else {
                 Component.text(station.line, NamedTextColor.WHITE)
             }
+            // 역 이름에 역 색깔 적용
+            val nameComp = if (station.color.contains("§")) {
+                LegacyComponentSerializer.legacySection().deserialize(station.color + station.name)
+            } else {
+                Component.text(station.name, NamedTextColor.YELLOW)
+            }
             val line = Component.text("  ", NamedTextColor.DARK_GRAY)
-                .append(Component.text(station.name, NamedTextColor.YELLOW)
+                .append(nameComp
                     .hoverEvent(HoverEvent.showText(
-                        Component.text("역: ", NamedTextColor.GRAY).append(Component.text(station.name, NamedTextColor.WHITE))
+                        Component.text("역: ", NamedTextColor.GRAY).append(nameComp)
                             .append(Component.text("\n선: ", NamedTextColor.GRAY)).append(lineComp)
                             .append(Component.text("\n행정구역: ", NamedTextColor.GRAY)).append(Component.text(station.district, NamedTextColor.WHITE))
                     )))

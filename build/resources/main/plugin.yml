@@ -72,7 +72,7 @@ commands:
   routes:
     description: 노선(역) 정보를 파일에서 읽어 표시합니다. 역·선 이름으로 검색 가능합니다.
     usage: "/routes [역 또는 선 검색어] [페이지]"
-    aliases: [노선, 노선도, thtjs, route, shtjseh]
+    aliases: [노선, 노선도, shtjs, route, shtjseh]
   notifysettings:
     description: 주식·뉴스 알림을 개별적으로 켜거나 끕니다. (채팅 클릭으로 설정)
     usage: "/notifysettings [주식|뉴스] [설정값]"
