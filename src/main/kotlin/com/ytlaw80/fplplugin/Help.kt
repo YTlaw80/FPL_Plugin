@@ -25,6 +25,7 @@ class Help(private val plugin: org.bukkit.plugin.java.JavaPlugin) : CommandExecu
         HelpEntry("wealthrank", "총 자산 순위", "/wealthrank"),
         HelpEntry("transfer", "다른 플레이어에게 송금", "/transfer <플레이어> <금액>"),
         HelpEntry("notifysettings", "주식·뉴스 알림 설정", "/notifysettings"),
+        HelpEntry("routes", "노선(역) 정보·역·선 검색", "/routes [검색어] [페이지]"),
         HelpEntry("makecompany", "주식회사 생성 (권한)", "/makecompany <회사이름> <기본가격>"),
         HelpEntry("deletecompany", "상장 폐지 (권한)", "/deletecompany <회사이름>"),
         HelpEntry("setstars", "별점 조정 (권한)", "/setstars <회사이름> <별점>"),
@@ -75,11 +76,11 @@ class Help(private val plugin: org.bukkit.plugin.java.JavaPlugin) : CommandExecu
 
         if (totalPages > 1) {
             val prevComp = if (page > 1) {
-                Component.text("[이전 <] ", NamedTextColor.WHITE)
+                Component.text("[< 이전] ", NamedTextColor.WHITE)
                     .clickEvent(ClickEvent.runCommand("/help ${page - 1}"))
                     .hoverEvent(HoverEvent.showText(Component.text("이전 페이지")))
             } else {
-                Component.text("[이전 <] ", NamedTextColor.DARK_GRAY)
+                Component.text("[< 이전] ", NamedTextColor.DARK_GRAY)
             }
             val pageComp = Component.text("$page / $totalPages 페이지 ", NamedTextColor.GRAY)
             val nextComp = if (page < totalPages) {

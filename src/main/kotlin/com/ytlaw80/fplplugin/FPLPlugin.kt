@@ -7,6 +7,7 @@ class FPLPlugin : JavaPlugin() {
     private lateinit var news: News
     private lateinit var stocks: Stocks
     private lateinit var help: Help
+    private lateinit var routes: Routes
 
     override fun onEnable() {
         if (!dataFolder.exists()) {
@@ -35,6 +36,12 @@ class FPLPlugin : JavaPlugin() {
                 it.tabCompleter = news
             } ?: logger.warning("명령어 /$cmd 가 plugin.yml 에 정의되어 있지 않습니다.")
         }
+
+        routes = Routes(this)
+        getCommand("routes")?.let {
+            it.setExecutor(routes)
+            it.tabCompleter = routes
+        } ?: logger.warning("명령어 /routes 가 plugin.yml 에 정의되어 있지 않습니다.")
 
         logger.info("FPLPlugin 활성화됨")
     }

@@ -345,11 +345,11 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
         if (totalPages > 1) {
             val prevComp = if (page > 1) {
-                Component.text("[이전 <] ", NamedTextColor.WHITE)
+                Component.text("[< 이전] ", NamedTextColor.WHITE)
                     .clickEvent(ClickEvent.runCommand("/checkstats ${page - 1}"))
                     .hoverEvent(HoverEvent.showText(Component.text("이전 페이지 보기")))
             } else {
-                Component.text("[이전 <] ", NamedTextColor.DARK_GRAY)
+                Component.text("[< 이전] ", NamedTextColor.DARK_GRAY)
             }
             val pageComp = Component.text("$page / $totalPages 페이지 ", NamedTextColor.GRAY)
             val nextComp = if (page < totalPages) {
@@ -933,7 +933,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         val color = if (diff >= 0) "§a" else "§c"
         val moneyPart = if (diff >= 0) "+${formatMoney(diff)}" else formatMoney(diff)
         val pctPart = String.format("%+.2f", pct)
-        return "§7직전 대비 $color$moneyPart §7($pctPart%)"
+        return "§7직전 대비 $color$pctPart% §7($moneyPart)"
     }
 
     /** 별점에 따른 초기 배율 (1→0.5, 2→0.8, 3→1.0, 4→1.3, 5→1.7) */
