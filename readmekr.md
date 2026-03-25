@@ -18,6 +18,11 @@
 - setstartmoney(기본돈) : 기본 돈을 설정합니다.
 - setmoney(돈설정) : 특정 플레이어의 돈을 설정합니다.
 
+## 추가 기능
+### 엔티티 & 블록 차단
+- 건축 서버에서 큰 위협이 되는 테러 블록을 방지할 수 있습니다.
+- resources/block_entity.yml 에서 블록이나 엔티티를 추가할 수 있습니다.
+
 ## 빌드
 - 배포용 JAR: `./gradlew shadowJar` → `build/libs/FPLPlugin-x.x.xc.jar`
 - `./gradlew build` 를 실행해도 `shadowJar` 가 함께 실행됩니다.

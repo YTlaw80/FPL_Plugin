@@ -8,7 +8,11 @@ import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.event.EventHandler
 import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
+import org.bukkit.event.block.BlockFromToEvent
+import org.bukkit.event.block.BlockPhysicsEvent
 import org.bukkit.event.block.BlockPlaceEvent
+import org.bukkit.event.block.BlockSpreadEvent
+import org.bukkit.event.entity.EntityChangeBlockEvent
 import org.bukkit.event.world.ChunkLoadEvent
 import org.bukkit.plugin.java.JavaPlugin
 import org.bukkit.scheduler.BukkitTask
@@ -44,19 +48,15 @@ class BlockedBlocksListener(private val plugin: JavaPlugin) : Listener {
         val defaults = YamlConfiguration.loadConfiguration(resourceStream.reader(Charsets.UTF_8))
 
         var changed = false
-        if (!yaml.contains("blocked_blocks") && defaults.contains("blocked_blocks")) {
-            yaml.set("blocked_blocks", defaults.getStringList("blocked_blocks"))
-            changed = true
-        }
-
-        if (!yaml.contains("blockedEntities") && defaults.contains("blockedEntities")) {
-            yaml.set("blockedEntities", defaults.getStringList("blockedEntities"))
-            changed = true
-        }
-
-        if (!yaml.contains("blockedEntities") && !yaml.contains("blocked_entities") && defaults.contains("blocked_entities")) {
-            yaml.set("blocked_entities", defaults.getStringList("blocked_entities"))
-            changed = true
+        // blocked_blocks는 기존 항목이 있더라도 "병합"해서 신규 기본값이 누락되지 않게 처리
+        val defaultBlocks = defaults.getStringList("blocked_blocks")
+        if (defaultBlocks.isNotEmpty()) {
+            val currentBlocks = yaml.getStringList("blocked_blocks")
+            val union = (currentBlocks + defaultBlocks).distinct()
+            if (union != currentBlocks) {
+                yaml.set("blocked_blocks", union)
+                changed = true
+            }
         }
 
         if (changed) {
@@ -80,7 +80,8 @@ class BlockedBlocksListener(private val plugin: JavaPlugin) : Listener {
             plugin.logger.warning("block_entity.yml에 유효한 Material이 없습니다. entries=${rawList.joinToString(", ")}")
         }
 
-        return parsed
+        // SOUL_SAND는 "제거(파괴)"하면 안 된다는 요구사항이 있어, 차단 대상에서 제외
+        return parsed - Material.SOUL_SAND
     }
 
     private fun parseMaterialType(raw: String): Material? {
@@ -97,6 +98,49 @@ class BlockedBlocksListener(private val plugin: JavaPlugin) : Listener {
         val type = event.blockPlaced.type
         if (blockedMaterials.contains(type)) {
             event.isCancelled = true
+            // 간혹 취소만으로도 한 틱 뒤에 블록이 남는 케이스를 대비해 즉시 제거
+            val b = event.blockPlaced
+            Bukkit.getScheduler().runTask(plugin, Runnable {
+                if (b.type == type) {
+                    b.setType(Material.AIR, false)
+                }
+            })
+        }
+    }
+
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
+    fun onBlockPhysics(event: BlockPhysicsEvent) {
+        val type = event.block.type
+        if (blockedMaterials.contains(type)) {
+            event.isCancelled = true
+            event.block.setType(Material.AIR, false)
+        }
+    }
+
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
+    fun onBlockFromTo(event: BlockFromToEvent) {
+        val toType = event.toBlock.type
+        if (blockedMaterials.contains(toType)) {
+            event.isCancelled = true
+            event.toBlock.setType(Material.AIR, false)
+        }
+    }
+
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
+    fun onBlockSpread(event: BlockSpreadEvent) {
+        val newType = event.newState.type
+        if (blockedMaterials.contains(newType)) {
+            event.isCancelled = true
+            event.newState.block.setType(Material.AIR, false)
+        }
+    }
+
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
+    fun onEntityChangeBlock(event: EntityChangeBlockEvent) {
+        val type = event.block.type
+        if (blockedMaterials.contains(type)) {
+            event.isCancelled = true
+            event.block.setType(Material.AIR, false)
         }
     }
 
