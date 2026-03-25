@@ -1,6 +1,6 @@
 name: FPL_Plugin
 main: com.ytlaw80.fplplugin.FPLPlugin
-version: 1.3.0
+version: 1.3.1
 api-version: "1.21"
 author: KR_YTlaw80
 description: FPL Plugin. News, stocks, etc.

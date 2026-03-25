@@ -17,7 +17,7 @@ import java.io.File
  *   - ENDER_DRAGON
  *   - WITHER
  */
-class DragonWitherBlocker(private val plugin: JavaPlugin) : Listener {
+class BlockedEntitiesListener(private val plugin: JavaPlugin) : Listener {
 
     private val blockFile = File(plugin.dataFolder, "block_entity.yml")
     private var blockedTypes: Set<EntityType> = emptySet()

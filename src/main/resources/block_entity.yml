@@ -1,4 +1,13 @@
 blocked_entities:
   - ENDER_DRAGON
   - WITHER
+  - TNT
+  - CREEPER
+  - TNT_MINECART
+  - ENDER_CRYSTAL
 
+blocked_blocks:
+  - TNT
+  - RESPAWN_ANCHOR
+  - FIRE
+  - LAVA

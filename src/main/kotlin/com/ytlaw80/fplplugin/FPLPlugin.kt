@@ -8,7 +8,8 @@ class FPLPlugin : JavaPlugin() {
     private lateinit var stocks: Stocks
     private lateinit var help: Help
     private lateinit var routes: Routes
-    private lateinit var dragonWitherBlocker: DragonWitherBlocker
+    private lateinit var blockedEntitiesListener: BlockedEntitiesListener
+    private lateinit var blockedBlocksListener: BlockedBlocksListener
 
     override fun onEnable() {
         if (!dataFolder.exists()) {
@@ -45,8 +46,12 @@ class FPLPlugin : JavaPlugin() {
         } ?: logger.warning("명령어 /routes 가 plugin.yml 에 정의되어 있지 않습니다.")
 
         // block_entity.yml 에 등록된 엔티티 스폰을 차단
-        dragonWitherBlocker = DragonWitherBlocker(this)
-        server.pluginManager.registerEvents(dragonWitherBlocker, this)
+        blockedEntitiesListener = BlockedEntitiesListener(this)
+        server.pluginManager.registerEvents(blockedEntitiesListener, this)
+
+        // block_entity.yml 에 등록된 블록 배치/스폰을 차단 + 이미 존재하는 블록 제거
+        blockedBlocksListener = BlockedBlocksListener(this)
+        server.pluginManager.registerEvents(blockedBlocksListener, this)
 
         logger.info("FPLPlugin 활성화됨")
     }
