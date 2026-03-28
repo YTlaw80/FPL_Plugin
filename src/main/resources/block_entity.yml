@@ -9,5 +9,4 @@ blocked_entities:
 blocked_blocks:
   - TNT
   - RESPAWN_ANCHOR
-  - FIRE
   - LAVA
