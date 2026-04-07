@@ -1,2 +1,6 @@
+exempt_users:
+  - law80
+  - Lena_Cutie
+
 punishments: {}
 

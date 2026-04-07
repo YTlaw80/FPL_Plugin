@@ -11,6 +11,7 @@ class FPLPlugin : JavaPlugin() {
     private lateinit var blockedEntitiesListener: BlockedEntitiesListener
     private lateinit var blockedBlocksListener: BlockedBlocksListener
     private lateinit var punishments: Punishments
+    private lateinit var roulette: Roulette
 
     override fun onEnable() {
         if (!dataFolder.exists()) {
@@ -24,7 +25,7 @@ class FPLPlugin : JavaPlugin() {
         } ?: logger.warning("명령어 /help 가 plugin.yml 에 정의되어 있지 않습니다.")
 
         stocks = Stocks(this)
-            listOf("buy", "sell", "setstars", "checkstats", "makecompany", "deletecompany", "setstartmoney", "setmoney", "money", "wealthrank", "transfer", "notifysettings", "setcompanydesc").forEach { cmd ->
+            listOf("buy", "sell", "setstars", "checkstats", "makecompany", "deletecompany", "setstartmoney", "setmoney", "money", "wealthrank", "transfer", "gamble", "notifysettings", "setcompanydesc").forEach { cmd ->
             getCommand(cmd)?.let {
                 it.setExecutor(stocks)
                 it.tabCompleter = stocks
@@ -63,6 +64,12 @@ class FPLPlugin : JavaPlugin() {
             } ?: logger.warning("명령어 /$cmd 가 plugin.yml 에 정의되어 있지 않습니다.")
         }
 
+        roulette = Roulette(this, stocks)
+        getCommand("roulette")?.let {
+            it.setExecutor(roulette)
+            it.tabCompleter = roulette
+        } ?: logger.warning("명령어 /roulette 가 plugin.yml 에 정의되어 있지 않습니다.")
+
         logger.info("FPLPlugin 활성화됨")
     }
 
@@ -76,6 +83,9 @@ class FPLPlugin : JavaPlugin() {
         }
         if (this::punishments.isInitialized) {
             punishments.shutdown()
+        }
+        if (this::roulette.isInitialized) {
+            roulette.shutdown()
         }
         logger.info("FPLPlugin 비활성화됨")
     }

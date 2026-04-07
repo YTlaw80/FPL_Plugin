@@ -35,6 +35,8 @@ data class Punishment(
 class Punishments(private val plugin: JavaPlugin) : Listener, CommandExecutor, TabCompleter {
     private val dataFile = File(plugin.dataFolder, "punishments.yml")
     private val punishments: MutableMap<UUID, Punishment> = mutableMapOf()
+    private var exemptUsersRaw: MutableList<String> = mutableListOf()
+    private var exemptUserUuids: Set<UUID> = emptySet()
     private var enforceTask: BukkitTask? = null
 
     init {
@@ -54,6 +56,20 @@ class Punishments(private val plugin: JavaPlugin) : Listener, CommandExecutor, T
 
     private fun isActive(p: Punishment): Boolean = System.currentTimeMillis() < p.untilEpochMs
 
+    private fun resolveExemptUsers() {
+        val resolved = mutableSetOf<UUID>()
+        exemptUsersRaw.forEach { raw ->
+            val t = raw.trim()
+            if (t.isEmpty()) return@forEach
+            val uuid = runCatching { UUID.fromString(t) }.getOrNull()
+                ?: Bukkit.getOfflinePlayer(t).uniqueId
+            resolved.add(uuid)
+        }
+        exemptUserUuids = resolved
+    }
+
+    private fun isExempt(uuid: UUID): Boolean = exemptUserUuids.contains(uuid)
+
     private fun levelGameMode(level: Int): GameMode? = when (level) {
         2 -> GameMode.ADVENTURE
         3 -> GameMode.SPECTATOR
@@ -70,7 +86,9 @@ class Punishments(private val plugin: JavaPlugin) : Listener, CommandExecutor, T
 
     private fun cleanupExpired() {
         val now = System.currentTimeMillis()
-        val expired = punishments.values.filter { it.untilEpochMs <= now }.map { it.uuid }
+        val expired = punishments.values
+            .filter { it.untilEpochMs <= now || isExempt(it.uuid) }
+            .map { it.uuid }
         if (expired.isEmpty()) return
         expired.forEach { punishments.remove(it) }
         save()
@@ -81,6 +99,10 @@ class Punishments(private val plugin: JavaPlugin) : Listener, CommandExecutor, T
     }
 
     private fun applyToPlayer(player: Player) {
+        if (isExempt(player.uniqueId)) {
+            punishments.remove(player.uniqueId)
+            return
+        }
         val punishment = punishments[player.uniqueId] ?: return
         if (!isActive(punishment)) return
 
@@ -134,6 +156,10 @@ class Punishments(private val plugin: JavaPlugin) : Listener, CommandExecutor, T
 
         val offline = Bukkit.getOfflinePlayer(targetName)
         val uuid = offline.uniqueId
+        if (isExempt(uuid)) {
+            sender.sendMessage("§c${targetName} 은(는) punishments.yml 의 exempt_users 예외 대상입니다.")
+            return true
+        }
         val p = Punishment(uuid, targetName, level, until)
         punishments[uuid] = p
         save()
@@ -219,6 +245,7 @@ class Punishments(private val plugin: JavaPlugin) : Listener, CommandExecutor, T
 
     @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
     fun onGameModeChange(event: PlayerGameModeChangeEvent) {
+        if (isExempt(event.player.uniqueId)) return
         val p = punishments[event.player.uniqueId] ?: return
         if (!isActive(p)) return
         val forced = levelGameMode(p.level) ?: return
@@ -230,6 +257,7 @@ class Punishments(private val plugin: JavaPlugin) : Listener, CommandExecutor, T
 
     @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
     fun onCommandTry(event: PlayerCommandPreprocessEvent) {
+        if (isExempt(event.player.uniqueId)) return
         val p = punishments[event.player.uniqueId] ?: return
         if (!isActive(p)) return
         if (p.level !in setOf(2, 3)) return
@@ -244,11 +272,13 @@ class Punishments(private val plugin: JavaPlugin) : Listener, CommandExecutor, T
     @EventHandler
     fun onJoin(event: PlayerJoinEvent) {
         cleanupExpired()
+        if (isExempt(event.player.uniqueId)) return
         applyToPlayer(event.player)
     }
 
     @EventHandler
     fun onLogin(event: PlayerLoginEvent) {
+        if (isExempt(event.player.uniqueId)) return
         val p = punishments[event.player.uniqueId] ?: return
         if (!isActive(p)) return
         if (p.level == 4) {
@@ -262,22 +292,30 @@ class Punishments(private val plugin: JavaPlugin) : Listener, CommandExecutor, T
     private fun load() {
         if (!dataFile.exists()) return
         val yaml = YamlConfiguration.loadConfiguration(dataFile)
-        val sec = yaml.getConfigurationSection("punishments") ?: return
-        for (id in sec.getKeys(false)) {
-            val uuid = runCatching { UUID.fromString(id) }.getOrNull() ?: continue
-            val psec = sec.getConfigurationSection(id) ?: continue
-            val name = psec.getString("name") ?: "unknown"
-            val level = psec.getInt("level", 1).coerceIn(1, 4)
-            val until = psec.getLong("untilEpochMs", 0L)
-            punishments[uuid] = Punishment(uuid, name, level, until)
+        exemptUsersRaw = yaml.getStringList("exempt_users").toMutableList()
+        resolveExemptUsers()
+
+        val sec = yaml.getConfigurationSection("punishments")
+        if (sec != null) {
+            for (id in sec.getKeys(false)) {
+                val uuid = runCatching { UUID.fromString(id) }.getOrNull() ?: continue
+                if (isExempt(uuid)) continue
+                val psec = sec.getConfigurationSection(id) ?: continue
+                val name = psec.getString("name") ?: "unknown"
+                val level = psec.getInt("level", 1).coerceIn(1, 4)
+                val until = psec.getLong("untilEpochMs", 0L)
+                punishments[uuid] = Punishment(uuid, name, level, until)
+            }
         }
         cleanupExpired()
     }
 
     private fun save() {
         val yaml = YamlConfiguration()
+        yaml.set("exempt_users", exemptUsersRaw.distinct())
         val sec = yaml.createSection("punishments")
         for ((uuid, p) in punishments) {
+            if (isExempt(uuid)) continue
             val psec = sec.createSection(uuid.toString())
             psec.set("name", p.name)
             psec.set("level", p.level)

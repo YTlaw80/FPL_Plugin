@@ -45,6 +45,8 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
     private val holdings: MutableMap<UUID, MutableMap<String, Int>> = mutableMapOf()
     /** 알림 설정 (주식: 시세/별점/상장폐지, 뉴스: 업로드 공지) */
     private val notificationPrefs: MutableMap<UUID, NotificationPref> = mutableMapOf()
+    /** 도박 성공확률 보정값 (기본 50%에 더해짐) */
+    private val gambleAdjust: MutableMap<UUID, Double> = mutableMapOf()
 
     private var startMoney: Double = 1000.0
 
@@ -82,6 +84,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             "money" -> handleMoney(sender, args)
             "wealthrank" -> handleWealthRank(sender, args)
             "transfer" -> handleTransfer(sender, args)
+            "gamble" -> handleGamble(sender, args)
             "notifysettings", "stocknotify" -> handleNotifySettings(sender, args)
             "setcompanydesc" -> handleSetCompanyDesc(sender, args)
             else -> false
@@ -135,6 +138,14 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
                         .filter { it.lowercase().startsWith(prefix) }
                     val filtered = if (lower == "transfer") names.filter { it != sender.name } else names
                     filtered.sorted().toMutableList()
+                } else mutableListOf()
+            }
+
+            "gamble" -> {
+                if (args.size == 1) {
+                    listOf("100", "500", "1000", "5000", "10000")
+                        .filter { it.startsWith(args[0]) }
+                        .toMutableList()
                 } else mutableListOf()
             }
 
@@ -567,6 +578,61 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         return true
     }
 
+    private fun handleGamble(sender: CommandSender, args: Array<out String>): Boolean {
+        if (sender !is Player) {
+            sender.sendMessage("§c플레이어만 이 명령어를 사용할 수 있습니다.")
+            return true
+        }
+        if (args.size != 1) {
+            sender.sendMessage("§c사용법: /gamble <금액>")
+            sender.sendMessage("§7성공 확률: 기본 50% + (실패 누적 +0.1% / 성공 시 -2%)")
+            return true
+        }
+
+        val bet = args[0].toDoubleOrNull()
+        if (bet == null || bet <= 0) {
+            sender.sendMessage("§c유효한 금액을 입력하세요. (0보다 커야 합니다)")
+            return true
+        }
+
+        val uuid = sender.uniqueId
+        val bal = getBalance(uuid)
+        val minBet = bal * 0.05
+        if (bet < minBet) {
+            sender.sendMessage("§c최소 도박 금액은 현재 보유 금액의 5% 입니다. (최소: ${formatMoney(minBet)})")
+            return true
+        }
+        if (bal < bet) {
+            sender.sendMessage("§c잔액이 부족합니다. (보유: ${formatMoney(bal)}, 필요: ${formatMoney(bet)})")
+            return true
+        }
+
+        val adjust = gambleAdjust[uuid] ?: 0.0
+        val chanceBefore = clampChance(0.5 + adjust)
+        val success = Random.nextDouble() < chanceBefore
+
+        if (success) {
+            // 성공: 배팅금만큼 이득 (순익 +bet)
+            setBalance(uuid, bal + bet)
+            gambleAdjust[uuid] = (chanceBefore - 0.02) - 0.5
+            save()
+            val chanceAfter = clampChance(0.5 + (gambleAdjust[uuid] ?: 0.0))
+            sender.sendMessage(
+                "§a[도박] 성공! §7+${formatMoney(bet)} §8(확률 ${formatPercent(chanceBefore)} → ${formatPercent(chanceAfter)})"
+            )
+        } else {
+            // 실패: 배팅금만큼 손해 (순익 -bet)
+            setBalance(uuid, bal - bet)
+            gambleAdjust[uuid] = (chanceBefore + 0.001) - 0.5
+            save()
+            val chanceAfter = clampChance(0.5 + (gambleAdjust[uuid] ?: 0.0))
+            sender.sendMessage(
+                "§c[도박] 실패... §7-${formatMoney(bet)} §8(확률 ${formatPercent(chanceBefore)} → ${formatPercent(chanceAfter)})"
+            )
+        }
+        return true
+    }
+
     private fun handleDeleteCompany(sender: CommandSender, args: Array<out String>): Boolean {
         if (!sender.hasPermission("fpl.stocks.admin")) {
             sender.sendMessage("§c이 명령어를 사용할 권한이 없습니다.")
@@ -863,6 +929,14 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
                 }
             }
         }
+
+        val gambleSec = config.getConfigurationSection("gambleAdjust")
+        if (gambleSec != null) {
+            for (id in gambleSec.getKeys(false)) {
+                val uuid = runCatching { UUID.fromString(id) }.getOrNull() ?: continue
+                gambleAdjust[uuid] = gambleSec.getDouble(id, 0.0)
+            }
+        }
     }
 
     fun save() {
@@ -898,6 +972,13 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             }
         }
 
+        if (gambleAdjust.isNotEmpty()) {
+            val gSec = config.createSection("gambleAdjust")
+            for ((uuid, adj) in gambleAdjust) {
+                gSec.set(uuid.toString(), adj)
+            }
+        }
+
         if (!plugin.dataFolder.exists()) {
             plugin.dataFolder.mkdirs()
         }
@@ -911,6 +992,27 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
     private fun setBalance(uuid: UUID, value: Double) {
         balances[uuid] = value
+    }
+
+    /** 외부 시스템(룰렛 등)에서 조회용으로 사용 */
+    fun getCashBalance(uuid: UUID): Double = getBalance(uuid)
+
+    /** 외부 시스템(룰렛 등)에서 출금 시도 */
+    fun withdrawCash(uuid: UUID, amount: Double): Boolean {
+        if (amount <= 0) return false
+        val bal = getBalance(uuid)
+        if (bal < amount) return false
+        setBalance(uuid, bal - amount)
+        save()
+        return true
+    }
+
+    /** 외부 시스템(룰렛 등)에서 입금 */
+    fun depositCash(uuid: UUID, amount: Double) {
+        if (amount <= 0) return
+        val bal = getBalance(uuid)
+        setBalance(uuid, bal + amount)
+        save()
     }
 
     private fun roundPrice(value: Double): Double {
@@ -1029,6 +1131,10 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
     private fun formatMoney(value: Double): String {
         return String.format("%,.2f", value)
     }
+
+    private fun clampChance(value: Double): Double = value.coerceIn(0.01, 0.99)
+
+    private fun formatPercent(chance: Double): String = String.format("%.1f%%", chance * 100.0)
 
     /** 알림 끈 플레이어 제외하고 공지 발송 (시세, 별점 변경, 상장폐지) */
     private fun broadcastStockNotification(message: String) {
