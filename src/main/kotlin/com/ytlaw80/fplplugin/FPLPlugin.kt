@@ -10,6 +10,7 @@ class FPLPlugin : JavaPlugin() {
     private lateinit var routes: Routes
     private lateinit var blockedEntitiesListener: BlockedEntitiesListener
     private lateinit var blockedBlocksListener: BlockedBlocksListener
+    private lateinit var punishments: Punishments
 
     override fun onEnable() {
         if (!dataFolder.exists()) {
@@ -53,6 +54,15 @@ class FPLPlugin : JavaPlugin() {
         blockedBlocksListener = BlockedBlocksListener(this)
         server.pluginManager.registerEvents(blockedBlocksListener, this)
 
+        punishments = Punishments(this)
+        server.pluginManager.registerEvents(punishments, this)
+        listOf("punish", "unpunish").forEach { cmd ->
+            getCommand(cmd)?.let {
+                it.setExecutor(punishments)
+                it.tabCompleter = punishments
+            } ?: logger.warning("명령어 /$cmd 가 plugin.yml 에 정의되어 있지 않습니다.")
+        }
+
         logger.info("FPLPlugin 활성화됨")
     }
 
@@ -63,6 +73,9 @@ class FPLPlugin : JavaPlugin() {
         if (this::stocks.isInitialized) {
             stocks.cancelPriceTick()
             stocks.save()
+        }
+        if (this::punishments.isInitialized) {
+            punishments.shutdown()
         }
         logger.info("FPLPlugin 비활성화됨")
     }

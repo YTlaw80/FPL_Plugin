@@ -10,3 +10,4 @@ blocked_blocks:
   - TNT
   - RESPAWN_ANCHOR
   - LAVA
+  - REPEATING_COMMAND_BLOCK
