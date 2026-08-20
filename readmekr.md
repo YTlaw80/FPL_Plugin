@@ -20,7 +20,7 @@
 - setmoney(돈설정) : 특정 플레이어의 돈을 설정합니다.
 ### 카지노
 - gamble(도박) : 돈을 가지고 도박을 합니다. 기본 확률은 50%이고 실패할 때마다 확률이 올라갑니다.
-- roullette(룰렛) : 돈을 가지고 룰렛을 돌립니다. 확률은 완전 랜덤입니다.
+- roulette(룰렛) : 돈을 가지고 룰렛을 돌립니다. 확률은 완전 랜덤입니다.
 ### 처벌
 - punish(처벌) : 특정 플레이어를 특정 강도(1~4)에 따라 처벌합니다.
 - unpunish(처벌해제) : 처벌을 해제합니다.
@@ -36,8 +36,4 @@
 ## 추가 기능
 ### 엔티티 & 블록 차단
 - 건축 서버에서 큰 위협이 되는 테러 블록을 방지할 수 있습니다.
-- resources/block_entity.yml 에서 블록이나 엔티티를 추가할 수 있습니다.
-
-## 빌드
-- 배포용 JAR: `./gradlew shadowJar` → `build/libs/FPLPlugin-x.x.x.jar`
-- `./gradlew build` 를 실행해도 `shadowJar` 가 함께 실행됩니다.
+- resources/block_entity.yml 에서 블록이나 엔티티를 추가할 수 있습니다.Jar` 가 함께 실행됩니다.
