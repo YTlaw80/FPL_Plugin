@@ -34,6 +34,6 @@
 | 4      | Ban until specific time       |
 
 ## And more
-### 엔티티 & 블록 차단
+### Blocking Entities and blocks
 - You can block entities or blocks which can be used by terror in building server.
 - You can add entities or blocks at resources/block_entity.yml.
