@@ -37,3 +37,18 @@
 ### Blocking Entities and blocks
 - You can block entities or blocks which can be used by terror in building server.
 - You can add entities or blocks at resources/block_entity.yml.
+### Clear Entity
+- clearentity: kill all entities except in safe_entity.yml.
+- checksafeentity: check entities in safe_entity.yml.
+- addsafeentity: add an entity to safe_entity.yml.
+- delsaffeentity: delete an entity from safe_entity.yml.
+- Only OP can use this features, and it's good for making the server pleasant.
+- Following entities are in safe_entity.yml basically: 
+    - armor stand
+    - block display
+    - item display
+    - item frame
+    - glowing item frame
+    - player
+    - painting
+    - mannequin

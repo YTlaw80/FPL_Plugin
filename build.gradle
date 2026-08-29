@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.ytlaw80.fplplugin"
-version = "1.4.0"
+version = "1.4.1"
 
 java {
     toolchain {
@@ -39,7 +39,7 @@ tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
 }
 
 tasks.withType(Jar).configureEach {
-    archiveBaseName.set("FPL_Plugin")
+    archiveBaseName.set("FPLPlugin")
 }
 
 shadowJar {

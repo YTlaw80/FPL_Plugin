@@ -36,4 +36,19 @@
 ## 추가 기능
 ### 엔티티 & 블록 차단
 - 건축 서버에서 큰 위협이 되는 테러 블록을 방지할 수 있습니다.
-- resources/block_entity.yml 에서 블록이나 엔티티를 추가할 수 있습니다.Jar` 가 함께 실행됩니다.
+- resources/block_entity.yml 에서 블록이나 엔티티를 추가할 수 있습니다.
+### 클리어 엔티티
+- clearentity: safe_entity.yml 에 존재하지 않는 모든 엔티티를 죽입니다.
+- checksafeentity: safe_entity.yml 에 존재하는 엔티티를 확인합니다.
+- addsafeentity: safe_entity.yml 에 엔티티를 추가합니다.
+- delsaffeentity: safe_entity.yml 에서 엔티티를 제거합니다.
+- OP만 사용할 수 있으며 서버에 렉을 유발하는 기타 엔티티를 처리하는데 효과적입니다.
+- 기본적으로 추가되어있는 엔티티는 다음과 같습니다.
+    - 갑옷 거치대
+    - 블록 디스플레이
+    - 아이템 디스플레이
+    - 아이템 액자
+    - 발광 아이템 액자
+    - 플레이어
+    - 그림
+    - 마네킹

@@ -1,0 +1,9 @@
+safe-entities:
+  - armor_stand
+  - block_display
+  - item_display
+  - item_frame
+  - glowing_item_frame
+  - player
+  - painting
+  - mannequin

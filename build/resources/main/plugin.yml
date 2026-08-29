@@ -1,6 +1,6 @@
-name: FPL_Plugin
+name: FPLPlugin
 main: com.ytlaw80.fplplugin.FPLPlugin
-version: 1.4.0
+version: 1.4.1
 api-version: "1.21"
 author: KR_YTlaw80
 description: FPL Plugin. News, stocks, etc.
@@ -93,6 +93,22 @@ commands:
     description: 문자열 목록 기반 룰렛을 돌립니다. (타이틀/액션바 표시)
     usage: "/roulette <start|stop|list|add|remove> 또는 /roulette start <금액>"
     aliases: [룰렛, 룰렛돌리기]
+  clearentity:
+    description: 월드에 존재하는 엔티티 중 safe_entity.yml 파일에 없는 엔티티를 모두 제거합니다. (OP 전용)
+    usage: /clearentity
+    aliases: [eclear, entityclear, killall, 엔클리어, 엔티티클리어, dpszmffldj, dpsxlxlzmffldj, dpszmf]
+  checksafeentity:
+      description: safe_entity.yml 파일에 존재하는 엔티티를 확인합니다. (OP 전용)
+      usage: /checksafeentity
+      aliases: [checksafe, safes, safeentity, 세이프엔티티]
+  addsafeentity:
+      description: safe_entity.yml 파일에 존재하는 엔티티를 추가합니다. (OP 전용)
+      usage: /addsafeentity
+      aliases: [addsafes, addsafe, 세이프추가, 세이프엔티티추가, 추가세이프]
+  delsafeentity:
+    description: safe_entity.yml 파일에 존재하는 엔티티를 선택해 제거합니다. (OP 전용)
+    usage: /delsafeentity
+    aliases: [delsafes, delsafe, 세이프제거, 세이프엔티티제거, 제거세이프]
 
 permissions:
   fpl.routes.reload:

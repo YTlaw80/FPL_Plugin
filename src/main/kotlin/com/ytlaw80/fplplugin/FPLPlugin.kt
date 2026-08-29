@@ -25,7 +25,7 @@ class FPLPlugin : JavaPlugin() {
         } ?: logger.warning("명령어 /help 가 plugin.yml 에 정의되어 있지 않습니다.")
 
         stocks = Stocks(this)
-            listOf("buy", "sell", "setstars", "checkstats", "makecompany", "deletecompany", "setstartmoney", "setmoney", "money", "wealthrank", "transfer", "gamble", "notifysettings", "setcompanydesc").forEach { cmd ->
+            listOf("buy", "sell", "setstars", "checkstats", "makecompany", "deletecompany", "setstartmoney", "setmoney", "money", "wealthrank", "transfer", "gamble", "notifysettings", "setcompanydesc", "clearentity", "checksafeentity", "addsafeentity","delsafeentity").forEach { cmd ->
             getCommand(cmd)?.let {
                 it.setExecutor(stocks)
                 it.tabCompleter = stocks
