@@ -53,7 +53,7 @@ class Routes(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
                     code to rest
                 }
                 Station(
-                    name = j.name.ifBlank { "(이름 없음)" },
+                    name = j.name.ifBlank { "" },
                     color = colorVal,
                     line = lineVal,
                     district = j.district.ifBlank { "-" }
@@ -75,7 +75,7 @@ class Routes(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
         if (args.isNotEmpty() && args[0].lowercase() == "reload" && sender.hasPermission("fpl.routes.reload")) {
             load()
-            sender.sendMessage("§a노선 데이터를 다시 불러왔습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "routes.reloaded"))
             return true
         }
 
@@ -130,22 +130,22 @@ class Routes(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         val to = minOf(from + perPage, list.size)
 
         val searchLabel = if (!searchQuery.isNullOrBlank()) {
-            " §7[검색: §f${searchQuery}§7]"
+            plugin.messages.text(sender, "routes.search-label", searchQuery)
         } else {
             ""
         }
-        sender.sendMessage("§6===== §e노선 정보$searchLabel §7($page/$totalPages) §6=====")
+        sender.sendMessage(plugin.messages.text(sender, "routes.header", searchLabel, page, totalPages))
 
         if (stations.isEmpty()) {
-            sender.sendMessage("§7등록된 노선이 없습니다.")
-            sender.sendMessage("§7§oplugin_data_folder/routes.json §7파일을 생성해 주세요.")
-            sender.sendMessage("§7형식: [{\"name\":\"역이름\",\"color\":\"§a\",\"line\":\"2호선\",\"district\":\"행정구역\"}, ...]")
+            sender.sendMessage(plugin.messages.text(sender, "routes.empty"))
+            sender.sendMessage(plugin.messages.text(sender, "routes.create-file"))
+            sender.sendMessage(plugin.messages.text(sender, "routes.format"))
             return
         }
 
         if (list.isEmpty()) {
-            sender.sendMessage("§7역 이름 또는 선(노선) 이름에 맞는 결과가 없습니다.")
-            sender.sendMessage("§7예: §f/노선 강남 §7· §f/노선 2호선")
+            sender.sendMessage(plugin.messages.text(sender, "routes.no-results"))
+            sender.sendMessage(plugin.messages.text(sender, "routes.search-example"))
             return
         }
 
@@ -163,21 +163,21 @@ class Routes(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             }
             // 역 이름에 역 색깔 적용
             val nameComp = if (station.color.contains("§")) {
-                LegacyComponentSerializer.legacySection().deserialize(station.color + station.name)
+                LegacyComponentSerializer.legacySection().deserialize(station.color + station.name.ifBlank { plugin.messages.text(sender, "routes.unnamed") })
             } else {
-                Component.text(station.name, NamedTextColor.YELLOW)
+                Component.text(station.name.ifBlank { plugin.messages.text(sender, "routes.unnamed") }, NamedTextColor.YELLOW)
             }
-            val line = Component.text("  ", NamedTextColor.DARK_GRAY)
+            val line = messageComponent(plugin.messages.text(sender, "common.indent"), NamedTextColor.DARK_GRAY)
                 .append(nameComp
                     .hoverEvent(HoverEvent.showText(
-                        Component.text("역: ", NamedTextColor.GRAY).append(nameComp)
-                            .append(Component.text("\n선: ", NamedTextColor.GRAY)).append(lineComp)
-                            .append(Component.text("\n행정구역: ", NamedTextColor.GRAY)).append(Component.text(station.district, NamedTextColor.WHITE))
+                        messageComponent(plugin.messages.text(sender, "routes.station-label"), NamedTextColor.GRAY).append(nameComp)
+                            .append(messageComponent(plugin.messages.text(sender, "routes.line-label"), NamedTextColor.GRAY)).append(lineComp)
+                            .append(messageComponent(plugin.messages.text(sender, "routes.district-label"), NamedTextColor.GRAY)).append(Component.text(station.district, NamedTextColor.WHITE))
                     )))
-                .append(Component.text(" §7| ", NamedTextColor.GRAY))
+                .append(messageComponent(plugin.messages.text(sender, "common.column-separator"), NamedTextColor.GRAY))
                 .append(lineComp)
-                .append(Component.text(" §7| ", NamedTextColor.GRAY))
-                .append(Component.text(" §7| ", NamedTextColor.GRAY))
+                .append(messageComponent(plugin.messages.text(sender, "common.column-separator"), NamedTextColor.GRAY))
+                .append(messageComponent(plugin.messages.text(sender, "common.column-separator"), NamedTextColor.GRAY))
                 .append(Component.text(station.district, NamedTextColor.GRAY))
             sender.sendMessage(line)
         }
@@ -186,19 +186,19 @@ class Routes(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             val prevCmd = buildRoutesCommand(page - 1, searchQuery)
             val nextCmd = buildRoutesCommand(page + 1, searchQuery)
             val prevComp = if (page > 1) {
-                Component.text("[이전 <] ", NamedTextColor.GRAY)
+                messageComponent(plugin.messages.text(sender, "routes.previous"), NamedTextColor.GRAY)
                     .clickEvent(ClickEvent.runCommand(prevCmd))
-                    .hoverEvent(HoverEvent.showText(Component.text("이전 페이지")))
+                    .hoverEvent(HoverEvent.showText(messageComponent(plugin.messages.text(sender, "common.previous-hover"))))
             } else {
-                Component.text("[이전 <] ", NamedTextColor.DARK_GRAY)
+                messageComponent(plugin.messages.text(sender, "routes.previous"), NamedTextColor.DARK_GRAY)
             }
-            val pageComp = Component.text("$page / $totalPages 페이지 ", NamedTextColor.GRAY)
+            val pageComp = messageComponent(plugin.messages.text(sender, "common.page", page, totalPages), NamedTextColor.GRAY)
             val nextComp = if (page < totalPages) {
-                Component.text("[다음 >]", NamedTextColor.GRAY)
+                messageComponent(plugin.messages.text(sender, "common.next"), NamedTextColor.GRAY)
                     .clickEvent(ClickEvent.runCommand(nextCmd))
-                    .hoverEvent(HoverEvent.showText(Component.text("다음 페이지")))
+                    .hoverEvent(HoverEvent.showText(messageComponent(plugin.messages.text(sender, "common.next-hover"))))
             } else {
-                Component.text("[다음 >]", NamedTextColor.DARK_GRAY)
+                messageComponent(plugin.messages.text(sender, "common.next"), NamedTextColor.DARK_GRAY)
             }
             sender.sendMessage(Component.empty().append(prevComp).append(pageComp).append(nextComp))
         }

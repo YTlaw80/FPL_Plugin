@@ -4,7 +4,6 @@ import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.event.HoverEvent
 import net.kyori.adventure.text.format.NamedTextColor
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.Bukkit
 import org.bukkit.command.Command
 import org.bukkit.command.CommandExecutor
@@ -122,10 +121,11 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             "notifysettings", "stocknotify" -> {
                 if (args.size <= 2) {
                     val subPrefix = if (args.size >= 2) args[1].lowercase() else args.getOrNull(0)?.lowercase() ?: ""
+                    val korean = plugin.messages.language(sender) == "ko_kr"
                     when (args.getOrNull(0)?.lowercase()) {
-                        "stock", "주식" -> listOf("on", "off", "켜기", "끄기").filter { it.startsWith(subPrefix) }
-                        "news", "뉴스" -> listOf("chat", "actionbar", "off", "채팅", "액션바", "끄기").filter { it.startsWith(subPrefix) }
-                        else -> listOf("stock", "news", "주식", "뉴스").filter { it.startsWith(subPrefix) }
+                        "stock", "주식" -> (listOf("on", "off") + if (korean) listOf("켜기", "끄기") else emptyList()).filter { it.startsWith(subPrefix) }
+                        "news", "뉴스" -> (listOf("chat", "actionbar", "off") + if (korean) listOf("채팅", "액션바", "끄기") else emptyList()).filter { it.startsWith(subPrefix) }
+                        else -> (listOf("stock", "news") + if (korean) listOf("주식", "뉴스") else emptyList()).filter { it.startsWith(subPrefix) }
                     }.toMutableList()
                 } else mutableListOf()
             }
@@ -157,25 +157,25 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
     private fun handleBuy(sender: CommandSender, args: Array<out String>): Boolean {
         if (sender !is Player) {
-            sender.sendMessage("§c플레이어만 이 명령어를 사용할 수 있습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "common.players-only"))
             return true
         }
 
         if (args.size != 2) {
-            sender.sendMessage("§c사용법: /buy <회사이름> <수량>")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.buy-usage"))
             return true
         }
 
         val companyName = args[0]
         val amount = args[1].toIntOrNull()
         if (amount == null || amount <= 0) {
-            sender.sendMessage("§c유효한 수량을 입력하세요.")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.invalid-quantity"))
             return true
         }
 
         val company = companies[companyName]
         if (company == null) {
-            sender.sendMessage("§c해당 이름의 회사를 찾을 수 없습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.company-not-found"))
             return true
         }
 
@@ -184,7 +184,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
         val bal = getBalance(sender.uniqueId)
         if (bal < totalPrice) {
-            sender.sendMessage("§c잔액이 부족합니다. (보유: ${formatMoney(bal)}, 필요: ${formatMoney(totalPrice)})")
+            sender.sendMessage(plugin.messages.text(sender, "common.insufficient-balance", formatMoney(bal), formatMoney(totalPrice)))
             return true
         }
 
@@ -197,38 +197,38 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
         save()
 
-        sender.sendMessage("§a${companyName} 주식 ${amount}개를 구매했습니다. (개당 ${formatMoney(pricePerStock)}, 총 ${formatMoney(totalPrice)})")
+        sender.sendMessage(plugin.messages.text(sender, "stocks.bought", companyName, amount, formatMoney(pricePerStock), formatMoney(totalPrice)))
         return true
     }
 
     private fun handleSell(sender: CommandSender, args: Array<out String>): Boolean {
         if (sender !is Player) {
-            sender.sendMessage("§c플레이어만 이 명령어를 사용할 수 있습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "common.players-only"))
             return true
         }
 
         if (args.size != 2) {
-            sender.sendMessage("§c사용법: /sell <회사이름> <수량>")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.sell-usage"))
             return true
         }
 
         val companyName = args[0]
         val amount = args[1].toIntOrNull()
         if (amount == null || amount <= 0) {
-            sender.sendMessage("§c유효한 수량을 입력하세요.")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.invalid-quantity"))
             return true
         }
 
         val company = companies[companyName]
         if (company == null) {
-            sender.sendMessage("§c해당 이름의 회사를 찾을 수 없습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.company-not-found"))
             return true
         }
 
         val playerHoldings = holdings.getOrPut(sender.uniqueId) { mutableMapOf() }
         val owned = playerHoldings[companyName] ?: 0
         if (owned < amount) {
-            sender.sendMessage("§c해당 회사의 주식을 충분히 보유하고 있지 않습니다. (보유: $owned)")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.insufficient-shares", owned))
             return true
         }
 
@@ -248,31 +248,31 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
         save()
 
-        sender.sendMessage("§a${companyName} 주식 ${amount}개를 판매했습니다. (개당 ${formatMoney(pricePerStock)}, 총 ${formatMoney(totalPrice)})")
+        sender.sendMessage(plugin.messages.text(sender, "stocks.sold", companyName, amount, formatMoney(pricePerStock), formatMoney(totalPrice)))
         return true
     }
 
     private fun handleSetStars(sender: CommandSender, args: Array<out String>): Boolean {
         if (!sender.hasPermission("fpl.stocks.admin")) {
-            sender.sendMessage("§c이 명령어를 사용할 권한이 없습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "common.command-no-permission"))
             return true
         }
 
         if (args.size != 2) {
-            sender.sendMessage("§c사용법: /setstars <회사이름> <별점(1~5, 소수 가능)>")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.rating-usage"))
             return true
         }
 
         val companyName = args[0]
         val stars = args[1].toDoubleOrNull()
         if (stars == null || stars !in 1.0..5.0) {
-            sender.sendMessage("§c별점은 1~5 사이의 값이어야 합니다. (예: 3.5)")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.invalid-rating"))
             return true
         }
 
         val company = companies[companyName]
         if (company == null) {
-            sender.sendMessage("§c해당 이름의 회사를 찾을 수 없습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.company-not-found"))
             return true
         }
 
@@ -280,8 +280,8 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         save()
 
         val starsDisplay = if (stars == stars.toLong().toDouble()) "${stars.toLong()}" else String.format("%.1f", stars)
-        broadcastStockNotification("§6[주식] §e${company.name}§f 의 별점이 §e${starsDisplay}★§f 로 변경되었습니다.")
-        sender.sendMessage("§a별점을 변경했습니다.")
+        broadcastStockNotification { p -> plugin.messages.text(p, "stocks.rating-notification", company.name, starsDisplay) }
+        sender.sendMessage(plugin.messages.text(sender, "stocks.rating-changed"))
         return true
     }
 
@@ -305,27 +305,27 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
         val company = companies[firstArg]
         if (company == null) {
-            sender.sendMessage("§c해당 이름의 회사를 찾을 수 없습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.company-not-found"))
             return true
         }
 
         val price = currentPrice(company)
-        sender.sendMessage("§6===== ${company.name} 정보 =====")
-        sender.sendMessage("§7다음 주가 반영까지: §e${formatTicksAsTimeLeft(ticksUntilPriceUpdate)}")
-        sender.sendMessage("§7별점: §e${formatStars(company.stars)}★")
+        sender.sendMessage(plugin.messages.text(sender, "stocks.company-header", company.name))
+        sender.sendMessage(plugin.messages.text(sender, "stocks.next-update", formatTicksAsTimeLeft(sender, ticksUntilPriceUpdate)))
+        sender.sendMessage(plugin.messages.text(sender, "stocks.rating", formatStars(company.stars)))
         if (company.description.isNotBlank()) {
-            sender.sendMessage("§7설명: §f${company.description}")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.description", company.description))
         }
-        sender.sendMessage("§7기본 가격: §a${formatMoney(company.basePrice)}")
-        sender.sendMessage("§7직전 시세: §f${formatMoney(roundPrice(company.previousPrice))}")
-        sender.sendMessage("§7현재 가격: §a${formatMoney(price)} §7| ${formatPriceDiffFromPrevious(company)}")
+        sender.sendMessage(plugin.messages.text(sender, "stocks.base-price", formatMoney(company.basePrice)))
+        sender.sendMessage(plugin.messages.text(sender, "stocks.previous-price", formatMoney(roundPrice(company.previousPrice))))
+        sender.sendMessage(plugin.messages.text(sender, "stocks.current-price", formatMoney(price), formatPriceDiffFromPrevious(sender, company)))
         return true
     }
 
     private fun sendCompanyList(sender: CommandSender, page: Int) {
-        sender.sendMessage("§7다음 주가 반영까지: §e${formatTicksAsTimeLeft(ticksUntilPriceUpdate)}")
+        sender.sendMessage(plugin.messages.text(sender, "stocks.next-update", formatTicksAsTimeLeft(sender, ticksUntilPriceUpdate)))
         if (companies.isEmpty()) {
-            sender.sendMessage("§7등록된 주식회사가 없습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.empty"))
             return
         }
 
@@ -337,45 +337,45 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         val to = minOf(from + COMPANIES_PER_PAGE, sortedCompanies.size)
         val pageCompanies = sortedCompanies.subList(from, to)
 
-        sender.sendMessage("§6===== 주식회사 목록 §7($page/$totalPages 페이지) §6=====")
+        sender.sendMessage(plugin.messages.text(sender, "stocks.list-header", page, totalPages))
         pageCompanies.forEach { company ->
             val price = currentPrice(company)
             val starsDisplay = formatStars(company.stars)
-            val diffPart = formatPriceDiffFromPrevious(company)
-            val hoverText = buildHoverForCompany(company)
-            val line = Component.text("  ", NamedTextColor.DARK_GRAY)
+            val diffPart = formatPriceDiffFromPrevious(sender, company)
+            val hoverText = buildHoverForCompany(sender, company)
+            val line = messageComponent(plugin.messages.text(sender, "common.indent"), NamedTextColor.DARK_GRAY)
                 .append(Component.text(company.name, NamedTextColor.AQUA)
                     .clickEvent(ClickEvent.runCommand("/checkstats ${company.name}"))
                     .hoverEvent(HoverEvent.showText(hoverText)))
-                .append(Component.text("(${starsDisplay}★)", NamedTextColor.YELLOW))
-                .append(Component.text(" 현재가: ", NamedTextColor.GRAY))
+                .append(messageComponent(plugin.messages.text(sender, "stocks.rating-badge", starsDisplay), NamedTextColor.YELLOW))
+                .append(messageComponent(plugin.messages.text(sender, "stocks.price-label"), NamedTextColor.GRAY))
                 .append(Component.text(formatMoney(price), NamedTextColor.GREEN))
-                .append(LegacyComponentSerializer.legacySection().deserialize(" | $diffPart"))
+                .append(messageComponent(plugin.messages.text(sender, "stocks.price-diff-separator", diffPart)))
             sender.sendMessage(line)
         }
 
         if (totalPages > 1) {
             val prevComp = if (page > 1) {
-                Component.text("[< 이전] ", NamedTextColor.WHITE)
+                messageComponent(plugin.messages.text(sender, "common.previous"), NamedTextColor.WHITE)
                     .clickEvent(ClickEvent.runCommand("/checkstats ${page - 1}"))
-                    .hoverEvent(HoverEvent.showText(Component.text("이전 페이지 보기")))
+                    .hoverEvent(HoverEvent.showText(messageComponent(plugin.messages.text(sender, "stocks.previous-hover"))))
             } else {
-                Component.text("[< 이전] ", NamedTextColor.DARK_GRAY)
+                messageComponent(plugin.messages.text(sender, "common.previous"), NamedTextColor.DARK_GRAY)
             }
-            val pageComp = Component.text("$page / $totalPages 페이지 ", NamedTextColor.GRAY)
+            val pageComp = messageComponent(plugin.messages.text(sender, "common.page", page, totalPages), NamedTextColor.GRAY)
             val nextComp = if (page < totalPages) {
-                Component.text("[다음 >]", NamedTextColor.WHITE)
+                messageComponent(plugin.messages.text(sender, "common.next"), NamedTextColor.WHITE)
                     .clickEvent(ClickEvent.runCommand("/checkstats ${page + 1}"))
-                    .hoverEvent(HoverEvent.showText(Component.text("다음 페이지 보기")))
+                    .hoverEvent(HoverEvent.showText(messageComponent(plugin.messages.text(sender, "stocks.next-hover"))))
             } else {
-                Component.text("[다음 >]", NamedTextColor.DARK_GRAY)
+                messageComponent(plugin.messages.text(sender, "common.next"), NamedTextColor.DARK_GRAY)
             }
             sender.sendMessage(Component.empty().append(prevComp).append(pageComp).append(nextComp))
         }
     }
 
-    private fun buildHoverForCompany(company: Company): Component {
-        var c = Component.text("클릭하여 상세 정보 보기", NamedTextColor.GRAY)
+    private fun buildHoverForCompany(sender: CommandSender, company: Company): Component {
+        var c = messageComponent(plugin.messages.text(sender, "stocks.details-hover"), NamedTextColor.GRAY)
         if (company.description.isNotBlank()) {
             val desc = if (company.description.length > 200) "${company.description.take(200)}…" else company.description
             c = c.append(Component.newline()).append(Component.text(desc, NamedTextColor.WHITE))
@@ -385,18 +385,18 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
     private fun handleSetCompanyDesc(sender: CommandSender, args: Array<out String>): Boolean {
         if (!sender.isOp) {
-            sender.sendMessage("§c이 명령어는 OP(서버 운영자)만 사용할 수 있습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "common.op-only"))
             return true
         }
         if (args.size < 2) {
-            sender.sendMessage("§c사용법: /setcompanydesc <회사이름> <설명...>")
-            sender.sendMessage("§7설명을 비우려면: §f/setcompanydesc <회사이름> -")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.description-usage"))
+            sender.sendMessage(plugin.messages.text(sender, "stocks.description-clear-usage"))
             return true
         }
         val companyName = args[0]
         val company = companies[companyName]
         if (company == null) {
-            sender.sendMessage("§c해당 이름의 회사를 찾을 수 없습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.company-not-found"))
             return true
         }
         var desc = args.drop(1).joinToString(" ")
@@ -406,9 +406,9 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         company.description = desc
         save()
         if (desc.isEmpty()) {
-            sender.sendMessage("§a${company.name} 의 설명을 제거했습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.description-cleared", company.name))
         } else {
-            sender.sendMessage("§a${company.name} 설명을 설정했습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.description-set", company.name))
         }
         return true
     }
@@ -439,24 +439,24 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
     private fun handleMakeCompany(sender: CommandSender, args: Array<out String>): Boolean {
         if (!sender.hasPermission("fpl.stocks.admin")) {
-            sender.sendMessage("§c이 명령어를 사용할 권한이 없습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "common.command-no-permission"))
             return true
         }
 
         if (args.size != 2) {
-            sender.sendMessage("§c사용법: /makecompany <회사이름> <기본가격>")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.create-usage"))
             return true
         }
 
         val name = args[0]
         val basePrice = args[1].toDoubleOrNull()
         if (basePrice == null || basePrice <= 0) {
-            sender.sendMessage("§c유효한 기본 가격을 입력하세요.")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.invalid-base-price"))
             return true
         }
 
         if (companies.containsKey(name)) {
-            sender.sendMessage("§c이미 존재하는 회사 이름입니다.")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.company-exists"))
             return true
         }
 
@@ -472,48 +472,48 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         companies[name] = company
         save()
 
-        sender.sendMessage("§a새로운 주식회사 §e$name§a 가 생성되었습니다. (기본 가격: ${formatMoney(basePrice)}, 초기 별점: 2.5★)")
+        sender.sendMessage(plugin.messages.text(sender, "stocks.created", name, formatMoney(basePrice)))
         return true
     }
 
     private fun handleSetStartMoney(sender: CommandSender, args: Array<out String>): Boolean {
         if (!sender.hasPermission("fpl.stocks.admin")) {
-            sender.sendMessage("§c이 명령어를 사용할 권한이 없습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "common.command-no-permission"))
             return true
         }
 
         if (args.size != 1) {
-            sender.sendMessage("§c사용법: /setstartmoney <금액>")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.start-money-usage"))
             return true
         }
 
         val value = args[0].toDoubleOrNull()
         if (value == null || value < 0) {
-            sender.sendMessage("§c유효한 금액을 입력하세요.")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.invalid-amount"))
             return true
         }
 
         startMoney = value
         save()
-        sender.sendMessage("§a기본 돈이 ${formatMoney(startMoney)} 으로 설정되었습니다.")
+        sender.sendMessage(plugin.messages.text(sender, "stocks.start-money-set", formatMoney(startMoney)))
         return true
     }
 
     private fun handleSetMoney(sender: CommandSender, args: Array<out String>): Boolean {
         if (!sender.hasPermission("fpl.stocks.admin")) {
-            sender.sendMessage("§c이 명령어를 사용할 권한이 없습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "common.command-no-permission"))
             return true
         }
 
         if (args.size != 2) {
-            sender.sendMessage("§c사용법: /setmoney <플레이어> <금액>")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.set-money-usage"))
             return true
         }
 
         val targetName = args[0]
         val value = args[1].toDoubleOrNull()
         if (value == null || value < 0) {
-            sender.sendMessage("§c유효한 금액을 입력하세요.")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.invalid-amount"))
             return true
         }
 
@@ -523,40 +523,40 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         setBalance(uuid, value)
         save()
 
-        sender.sendMessage("§a$targetName 님의 돈이 ${formatMoney(value)} 으로 설정되었습니다.")
-        Bukkit.getPlayerExact(targetName)?.sendMessage("§6[주식] §a당신의 돈이 관리자에 의해 ${formatMoney(value)} 으로 설정되었습니다.")
+        sender.sendMessage(plugin.messages.text(sender, "stocks.money-set", targetName, formatMoney(value)))
+        Bukkit.getPlayerExact(targetName)?.let { recipient -> recipient.sendMessage(plugin.messages.text(recipient, "stocks.money-set-notification", formatMoney(value))) }
         return true
     }
 
     private fun handleTransfer(sender: CommandSender, args: Array<out String>): Boolean {
         if (sender !is Player) {
-            sender.sendMessage("§c플레이어만 이 명령어를 사용할 수 있습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "common.players-only"))
             return true
         }
         if (args.size != 2) {
-            sender.sendMessage("§c사용법: /송금 <플레이어> <금액>")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.transfer-usage"))
             return true
         }
 
         val targetName = args[0]
         val amount = args[1].toDoubleOrNull()
         if (amount == null || amount <= 0) {
-            sender.sendMessage("§c유효한 금액을 입력하세요. (0보다 커야 합니다)")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.positive-amount"))
             return true
         }
 
         if (targetName.equals(sender.name, ignoreCase = true)) {
-            sender.sendMessage("§c자기 자신에게는 송금할 수 없습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.self-transfer"))
             return true
         }
 
         val target = Bukkit.getPlayer(targetName)
         if (target == null) {
-            sender.sendMessage("§c접속 중인 플레이어를 찾을 수 없습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.player-not-found"))
             return true
         }
         if (target == sender) {
-            sender.sendMessage("§c자기 자신에게는 송금할 수 없습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.self-transfer"))
             return true
         }
 
@@ -564,7 +564,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         val targetUuid = target.uniqueId
         val senderBal = getBalance(senderUuid)
         if (senderBal < amount) {
-            sender.sendMessage("§c잔액이 부족합니다. (보유: ${formatMoney(senderBal)}, 필요: ${formatMoney(amount)})")
+            sender.sendMessage(plugin.messages.text(sender, "common.insufficient-balance", formatMoney(senderBal), formatMoney(amount)))
             return true
         }
 
@@ -573,25 +573,25 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         setBalance(targetUuid, targetBal + amount)
         save()
 
-        sender.sendMessage("§a${target.name} §7님에게 §a${formatMoney(amount)}§7 을(를) 송금했습니다. §8(잔액: ${formatMoney(senderBal - amount)})")
-        target.sendMessage("§6[주식] §e${sender.name}§f 님으로부터 §a${formatMoney(amount)}§f 을(를) 받았습니다. §8(잔액: ${formatMoney(targetBal + amount)})")
+        sender.sendMessage(plugin.messages.text(sender, "stocks.transferred", target.name, formatMoney(amount), formatMoney(senderBal - amount)))
+        target.sendMessage(plugin.messages.text(target, "stocks.transfer-received", sender.name, formatMoney(amount), formatMoney(targetBal + amount)))
         return true
     }
 
     private fun handleGamble(sender: CommandSender, args: Array<out String>): Boolean {
         if (sender !is Player) {
-            sender.sendMessage("§c플레이어만 이 명령어를 사용할 수 있습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "common.players-only"))
             return true
         }
         if (args.size != 1) {
-            sender.sendMessage("§c사용법: /gamble <금액>")
-            sender.sendMessage("§7성공 확률: 기본 50% + (실패 누적 +0.1% / 성공 시 -2%)")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.gamble-usage"))
+            sender.sendMessage(plugin.messages.text(sender, "stocks.gamble-chance"))
             return true
         }
 
         val bet = args[0].toDoubleOrNull()
         if (bet == null || bet <= 0) {
-            sender.sendMessage("§c유효한 금액을 입력하세요. (0보다 커야 합니다)")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.positive-amount"))
             return true
         }
 
@@ -599,11 +599,11 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         val bal = getBalance(uuid)
         val minBet = bal * 0.05
         if (bet < minBet) {
-            sender.sendMessage("§c최소 도박 금액은 현재 보유 금액의 5% 입니다. (최소: ${formatMoney(minBet)})")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.minimum-bet", formatMoney(minBet)))
             return true
         }
         if (bal < bet) {
-            sender.sendMessage("§c잔액이 부족합니다. (보유: ${formatMoney(bal)}, 필요: ${formatMoney(bet)})")
+            sender.sendMessage(plugin.messages.text(sender, "common.insufficient-balance", formatMoney(bal), formatMoney(bet)))
             return true
         }
 
@@ -618,7 +618,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             save()
             val chanceAfter = clampChance(0.5 + (gambleAdjust[uuid] ?: 0.0))
             sender.sendMessage(
-                "§a[도박] 성공! §7+${formatMoney(bet)} §8(확률 ${formatPercent(chanceBefore)} → ${formatPercent(chanceAfter)})"
+                plugin.messages.text(sender, "stocks.gamble-won", formatMoney(bet), formatPercent(chanceBefore), formatPercent(chanceAfter))
             )
         } else {
             // 실패: 배팅금만큼 손해 (순익 -bet)
@@ -627,7 +627,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             save()
             val chanceAfter = clampChance(0.5 + (gambleAdjust[uuid] ?: 0.0))
             sender.sendMessage(
-                "§c[도박] 실패... §7-${formatMoney(bet)} §8(확률 ${formatPercent(chanceBefore)} → ${formatPercent(chanceAfter)})"
+                plugin.messages.text(sender, "stocks.gamble-lost", formatMoney(bet), formatPercent(chanceBefore), formatPercent(chanceAfter))
             )
         }
         return true
@@ -635,19 +635,19 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
     private fun handleDeleteCompany(sender: CommandSender, args: Array<out String>): Boolean {
         if (!sender.hasPermission("fpl.stocks.admin")) {
-            sender.sendMessage("§c이 명령어를 사용할 권한이 없습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "common.command-no-permission"))
             return true
         }
 
         if (args.size != 1) {
-            sender.sendMessage("§c사용법: /deletecompany <회사이름>")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.delete-usage"))
             return true
         }
 
         val companyName = args[0]
         val company = companies[companyName]
         if (company == null) {
-            sender.sendMessage("§c해당 이름의 회사를 찾을 수 없습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.company-not-found"))
             return true
         }
 
@@ -661,15 +661,15 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
                 val bal = getBalance(uuid)
                 setBalance(uuid, bal + refund)
                 playerHoldings.remove(companyName)
-                Bukkit.getPlayer(uuid)?.sendMessage("§6[주식] §e${company.name}§f 상장 폐지로 보유 주식 §7${amount}주§f가 현재가 §a${formatMoney(refund)}§f 로 환급되었습니다.")
+                Bukkit.getPlayer(uuid)?.let { recipient -> recipient.sendMessage(plugin.messages.text(recipient, "stocks.delist-refund", company.name, amount, formatMoney(refund))) }
             }
         }
 
         companies.remove(companyName)
         save()
 
-        broadcastStockNotification("§6[주식] §c§l상장 폐지 §f- §e${company.name}§f 이(가) 시장에서 퇴출되었습니다.")
-        sender.sendMessage("§a${company.name} 상장이 폐지되었습니다. 보유자에게 현재가로 환급했습니다.")
+        broadcastStockNotification { p -> plugin.messages.text(p, "stocks.delist-notification", company.name) }
+        sender.sendMessage(plugin.messages.text(sender, "stocks.delisted", company.name))
         return true
     }
 
@@ -685,7 +685,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
 
     private fun handleNotifySettings(sender: CommandSender, args: Array<out String>): Boolean {
         if (sender !is Player) {
-            sender.sendMessage("§c플레이어만 이 명령어를 사용할 수 있습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "common.players-only"))
             return true
         }
         val uuid = sender.uniqueId
@@ -699,7 +699,7 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
                     "stock", "주식" -> {
                         pref.stock = on
                         save()
-                        sender.sendMessage("§7주식 알림: §${if (on) "a켜짐" else "c꺼짐"}§7 입니다.")
+                        sender.sendMessage(plugin.messages.text(sender, "notifications.stock-status", if (on) plugin.messages.text(sender, "notifications.stock-enabled") else plugin.messages.text(sender, "notifications.stock-disabled")))
                     }
                     "news", "뉴스" -> {
                         val mode = when (args[1].lowercase()) {
@@ -711,11 +711,11 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
                         pref.newsMode = mode
                         save()
                         val modeStr = when (mode) {
-                            "chat" -> "§a채팅"
-                            "actionbar" -> "§e액션바"
-                            else -> "§c끄기"
+                            "chat" -> plugin.messages.text(sender, "notifications.chat-colored")
+                            "actionbar" -> plugin.messages.text(sender, "notifications.actionbar-colored")
+                            else -> plugin.messages.text(sender, "notifications.off-colored")
                         }
-                        sender.sendMessage("§7뉴스 알림: $modeStr§7 입니다.")
+                        sender.sendMessage(plugin.messages.text(sender, "notifications.news-status", modeStr))
                     }
                     else -> sendNotifySettingsUi(sender)
                 }
@@ -728,44 +728,44 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
     private fun sendNotifySettingsUi(sender: Player) {
         val uuid = sender.uniqueId
         val pref = getNotificationPref(uuid)
-        sender.sendMessage("§6===== §e알림 설정 §6=====")
-        sender.sendMessage("§7클릭하여 켜기/끄기 전환")
+        sender.sendMessage(plugin.messages.text(sender, "notifications.header"))
+        sender.sendMessage(plugin.messages.text(sender, "notifications.toggle-hint"))
 
-        val stockLine = Component.text("주식 알림 §7(시세, 별점, 상장폐지): ", NamedTextColor.GRAY)
+        val stockLine = messageComponent(plugin.messages.text(sender, "notifications.stock-label"), NamedTextColor.GRAY)
             .append(if (pref.stock) {
-                Component.text("[켜짐] ", NamedTextColor.GREEN)
+                messageComponent(plugin.messages.text(sender, "notifications.on-button"), NamedTextColor.GREEN)
                     .clickEvent(ClickEvent.runCommand("/notifysettings stock off"))
-                    .hoverEvent(HoverEvent.showText(Component.text("클릭하여 끄기")))
+                    .hoverEvent(HoverEvent.showText(messageComponent(plugin.messages.text(sender, "notifications.disable-hover"))))
             } else {
-                Component.text("[꺼짐] ", NamedTextColor.RED)
+                messageComponent(plugin.messages.text(sender, "notifications.off-button"), NamedTextColor.RED)
                     .clickEvent(ClickEvent.runCommand("/notifysettings stock on"))
-                    .hoverEvent(HoverEvent.showText(Component.text("클릭하여 켜기")))
+                    .hoverEvent(HoverEvent.showText(messageComponent(plugin.messages.text(sender, "notifications.enable-hover"))))
             })
         sender.sendMessage(stockLine)
 
-        val newsLine = Component.text("뉴스 알림 §7(업로드 시): ", NamedTextColor.GRAY)
-            .append(buildNewsModeButton("채팅", "chat", pref.newsMode))
-            .append(Component.text(" ", NamedTextColor.DARK_GRAY))
-            .append(buildNewsModeButton("액션바", "actionbar", pref.newsMode))
-            .append(Component.text(" ", NamedTextColor.DARK_GRAY))
-            .append(buildNewsModeButton("끄기", "off", pref.newsMode))
+        val newsLine = messageComponent(plugin.messages.text(sender, "notifications.news-label"), NamedTextColor.GRAY)
+            .append(buildNewsModeButton(sender, plugin.messages.text(sender, "notifications.chat"), "chat", pref.newsMode))
+            .append(messageComponent(plugin.messages.text(sender, "common.space"), NamedTextColor.DARK_GRAY))
+            .append(buildNewsModeButton(sender, plugin.messages.text(sender, "notifications.actionbar"), "actionbar", pref.newsMode))
+            .append(messageComponent(plugin.messages.text(sender, "common.space"), NamedTextColor.DARK_GRAY))
+            .append(buildNewsModeButton(sender, plugin.messages.text(sender, "notifications.off-label"), "off", pref.newsMode))
         sender.sendMessage(newsLine)
     }
 
-    private fun buildNewsModeButton(label: String, mode: String, current: String): Component {
+    private fun buildNewsModeButton(sender: CommandSender, label: String, mode: String, current: String): Component {
         val isSelected = current == mode
-        return Component.text("[$label]", if (isSelected) NamedTextColor.GREEN else NamedTextColor.GRAY)
+        return messageComponent(plugin.messages.text(sender, "notifications.mode-button", label), if (isSelected) NamedTextColor.GREEN else NamedTextColor.GRAY)
             .clickEvent(ClickEvent.runCommand("/notifysettings news $mode"))
-            .hoverEvent(HoverEvent.showText(Component.text(if (isSelected) "현재 선택됨" else "클릭하여 $label 으로 변경")))
+            .hoverEvent(HoverEvent.showText(messageComponent(if (isSelected) plugin.messages.text(sender, "notifications.selected-hover") else plugin.messages.text(sender, "notifications.select-hover", label))))
     }
 
     private fun handleMoney(sender: CommandSender, args: Array<out String>): Boolean {
         if (sender !is Player) {
-            sender.sendMessage("§c플레이어만 이 명령어를 사용할 수 있습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "common.players-only"))
             return true
         }
         if (args.isNotEmpty()) {
-            sender.sendMessage("§c사용법: /money")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.money-usage"))
             return true
         }
 
@@ -773,38 +773,38 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         val cash = getBalance(uuid)
         val playerHoldings = holdings[uuid]
 
-        sender.sendMessage("§6===== §e내 지갑 §6=====")
-        sender.sendMessage("§7현금: §a${formatMoney(cash)}")
+        sender.sendMessage(plugin.messages.text(sender, "stocks.wallet-header"))
+        sender.sendMessage(plugin.messages.text(sender, "stocks.cash", formatMoney(cash)))
 
         if (playerHoldings == null || playerHoldings.isEmpty()) {
-            sender.sendMessage("§7보유 주식: §f없음")
-            sender.sendMessage("§7총 자산: §a${formatMoney(cash)}")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.no-holdings"))
+            sender.sendMessage(plugin.messages.text(sender, "stocks.total-assets", formatMoney(cash)))
             return true
         }
 
-        sender.sendMessage("§7보유 주식:")
+        sender.sendMessage(plugin.messages.text(sender, "stocks.holdings-header"))
         var stockTotal = 0.0
         for ((companyName, qty) in playerHoldings.entries.sortedBy { it.key }) {
             val company = companies[companyName]
             if (company == null) {
-                sender.sendMessage(" §7- §e$companyName §7${qty}주 §c(회사 정보 없음)")
+                sender.sendMessage(plugin.messages.text(sender, "stocks.unknown-holding", companyName, qty))
                 continue
             }
             val unit = currentPrice(company)
             val sub = unit * qty
             stockTotal += sub
-            sender.sendMessage(" §7- §e$companyName §7${qty}주 §8× §f${formatMoney(unit)} §7→ §a${formatMoney(sub)}")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.holding", companyName, qty, formatMoney(unit), formatMoney(sub)))
         }
 
-        sender.sendMessage("§7주식 평가액 합계: §a${formatMoney(stockTotal)}")
+        sender.sendMessage(plugin.messages.text(sender, "stocks.stock-value", formatMoney(stockTotal)))
         val grand = cash + stockTotal
-        sender.sendMessage("§6총 자산 §7(현금+주식): §a§l${formatMoney(grand)}")
+        sender.sendMessage(plugin.messages.text(sender, "stocks.grand-total", formatMoney(grand)))
         return true
     }
 
     private fun handleWealthRank(sender: CommandSender, args: Array<out String>): Boolean {
         if (args.isNotEmpty()) {
-            sender.sendMessage("§c사용법: /순위")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.rank-usage"))
             return true
         }
 
@@ -815,13 +815,13 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
             Triple(uuid, cash + stock, cash to stock)
         }.sortedByDescending { it.second }
 
-        sender.sendMessage("§6===== §e총 자산 순위 §7(현금+주식) §6=====")
+        sender.sendMessage(plugin.messages.text(sender, "stocks.rank-header"))
         if (rows.isEmpty()) {
-            sender.sendMessage("§7아직 기록된 플레이어가 없습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "stocks.no-players"))
             return true
         }
 
-        sender.sendMessage("§7총 §f${rows.size}§7명")
+        sender.sendMessage(plugin.messages.text(sender, "stocks.player-count", rows.size))
         rows.forEachIndexed { index, (uuid, total, cashStock) ->
             val rank = index + 1
             val (cash, stock) = cashStock
@@ -834,9 +834,9 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
                 3 -> "§c§l"
                 else -> "§e"
             }
-            val selfMark = if (isSelf) " §6«나»" else ""
+            val selfMark = if (isSelf) plugin.messages.text(sender, "stocks.self-marker") else ""
             sender.sendMessage(
-                "$rankPrefix${rank}위 §f$name$selfMark §7- §a${formatMoney(total)} §8(현금 ${formatMoney(cash)} · 주식 ${formatMoney(stock)})"
+                plugin.messages.text(sender, "stocks.rank-row", rankPrefix, rank, name, selfMark, formatMoney(total), formatMoney(cash), formatMoney(stock))
             )
         }
         return true
@@ -1024,18 +1024,18 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
     }
 
     /** 직전 자동 시세 대비 차액·등락률 (색상 코드 포함) */
-    private fun formatPriceDiffFromPrevious(company: Company): String {
+    private fun formatPriceDiffFromPrevious(sender: CommandSender, company: Company): String {
         val cur = currentPrice(company)
         val prev = roundPrice(company.previousPrice)
         val diff = cur - prev
         if (kotlin.math.abs(diff) < 0.005) {
-            return "§7직전 대비 §f변동 없음"
+            return plugin.messages.text(sender, "stocks.no-price-change")
         }
         val pct = if (prev > 1e-9) (diff / prev) * 100.0 else 0.0
         val color = if (diff >= 0) "§a" else "§c"
         val moneyPart = if (diff >= 0) "+${formatMoney(diff)}" else formatMoney(diff)
         val pctPart = String.format("%+.2f", pct)
-        return "§7직전 대비 $color$pctPart% §7($moneyPart)"
+        return plugin.messages.text(sender, "stocks.price-change", color, pctPart, moneyPart)
     }
 
     /** 별점에 따른 초기 배율 (1→0.5, 2→0.8, 3→1.0, 4→1.3, 5→1.7) */
@@ -1102,10 +1102,10 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
         if (changes.isNotEmpty()) {
             Bukkit.getOnlinePlayers().forEach { p ->
                 if (wantsStockNotification(p.uniqueId)) {
-                    p.sendMessage("§6[주식 시세]")
+                    p.sendMessage(plugin.messages.text(p, "stocks.price-notification-header"))
                     changes.forEach { (name, pct) ->
                         val color = if (pct >= 0) "§a" else "§c"
-                        p.sendMessage(" §7- §e$name§f $color${String.format("%+.1f", pct)}%")
+                        p.sendMessage(plugin.messages.text(p, "stocks.price-notification-row", name, color, String.format("%+.1f", pct)))
                     }
                 }
             }
@@ -1117,14 +1117,14 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
     }
 
     /** 게임 틱을 분·초 문자열로 (20틱 ≈ 1초) */
-    private fun formatTicksAsTimeLeft(ticks: Long): String {
-        if (ticks <= 0) return "곧 반영"
+    private fun formatTicksAsTimeLeft(sender: CommandSender, ticks: Long): String {
+        if (ticks <= 0) return plugin.messages.text(sender, "time.soon")
         val totalSec = ticks / 20
         val m = totalSec / 60
         val s = totalSec % 60
         return when {
-            m > 0 -> "${m}분 ${s}초"
-            else -> "${s}초"
+            m > 0 -> plugin.messages.text(sender, "time.minutes-seconds", m, s)
+            else -> plugin.messages.text(sender, "time.seconds", s)
         }
     }
 
@@ -1137,10 +1137,10 @@ class Stocks(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter {
     private fun formatPercent(chance: Double): String = String.format("%.1f%%", chance * 100.0)
 
     /** 알림 끈 플레이어 제외하고 공지 발송 (시세, 별점 변경, 상장폐지) */
-    private fun broadcastStockNotification(message: String) {
+    private fun broadcastStockNotification(message: (Player) -> String) {
         Bukkit.getOnlinePlayers().forEach { p ->
             if (wantsStockNotification(p.uniqueId)) {
-                p.sendMessage(message)
+                p.sendMessage(message(p))
             }
         }
     }

@@ -4,6 +4,10 @@ import org.bukkit.plugin.java.JavaPlugin
 
 class FPLPlugin : JavaPlugin() {
 
+    lateinit var languages: Languages
+        private set
+
+    private lateinit var safeEntity: SafeEntity
     private lateinit var news: News
     private lateinit var stocks: Stocks
     private lateinit var help: Help
@@ -18,6 +22,13 @@ class FPLPlugin : JavaPlugin() {
             dataFolder.mkdirs()
         }
 
+        saveDefaultConfig()
+        languages = Languages(this)
+        getCommand("language")?.let {
+            it.setExecutor(languages)
+            it.tabCompleter = languages
+        } ?: logger.warning("Command /language is not defined in plugin.yml.")
+
         help = Help(this)
         getCommand("help")?.let {
             it.setExecutor(help)
@@ -25,10 +36,18 @@ class FPLPlugin : JavaPlugin() {
         } ?: logger.warning("명령어 /help 가 plugin.yml 에 정의되어 있지 않습니다.")
 
         stocks = Stocks(this)
-            listOf("buy", "sell", "setstars", "checkstats", "makecompany", "deletecompany", "setstartmoney", "setmoney", "money", "wealthrank", "transfer", "gamble", "notifysettings", "setcompanydesc", "clearentity", "checksafeentity", "addsafeentity","delsafeentity").forEach { cmd ->
+            listOf("buy", "sell", "setstars", "checkstats", "makecompany", "deletecompany", "setstartmoney", "setmoney", "money", "wealthrank", "transfer", "gamble", "notifysettings", "setcompanydesc").forEach { cmd ->
             getCommand(cmd)?.let {
                 it.setExecutor(stocks)
                 it.tabCompleter = stocks
+            } ?: logger.warning("명령어 /$cmd 가 plugin.yml 에 정의되어 있지 않습니다.")
+        }
+
+        safeEntity = SafeEntity(this)
+        listOf("clearentity", "checksafeentity", "addsafeentity", "delsafeentity").forEach { cmd ->
+            getCommand(cmd)?.let {
+                it.setExecutor(safeEntity)
+                it.tabCompleter = safeEntity
             } ?: logger.warning("명령어 /$cmd 가 plugin.yml 에 정의되어 있지 않습니다.")
         }
 
@@ -69,6 +88,8 @@ class FPLPlugin : JavaPlugin() {
             it.setExecutor(roulette)
             it.tabCompleter = roulette
         } ?: logger.warning("명령어 /roulette 가 plugin.yml 에 정의되어 있지 않습니다.")
+
+
 
         logger.info("FPLPlugin 활성화됨")
     }

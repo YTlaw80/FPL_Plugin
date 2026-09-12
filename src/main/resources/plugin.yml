@@ -1,10 +1,14 @@
 name: FPLPlugin
 main: com.ytlaw80.fplplugin.FPLPlugin
-version: 1.4.1
+version: 1.5.0
 api-version: "1.21"
 author: KR_YTlaw80
 description: FPL Plugin. News, stocks, etc.
 commands:
+  language:
+    description: 표시 언어를 선택합니다. / Choose your display language.
+    usage: "/language [언어/language|reload]"
+    aliases: [lang, 언어]
   help:
     description: FPL 플러그인 명령어 도움말을 표시합니다.
     usage: "/help [페이지]"
@@ -111,6 +115,9 @@ commands:
     aliases: [delsafes, delsafe, 세이프제거, 세이프엔티티제거, 제거세이프]
 
 permissions:
+  fpl.language.reload:
+    description: 언어 파일을 다시 불러옵니다.
+    default: op
   fpl.routes.reload:
     description: 노선 데이터 파일을 다시 불러옵니다.
     default: op

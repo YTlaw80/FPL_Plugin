@@ -64,12 +64,12 @@ class News(private val plugin: JavaPlugin, private val stocks: Stocks) : Command
 
     private fun handleUploadNews(sender: CommandSender, args: Array<out String>): Boolean {
         if (sender !is Player) {
-            sender.sendMessage("§c플레이어만 이 명령어를 사용할 수 있습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "common.players-only"))
             return true
         }
 
         if (args.size < 2) {
-            sender.sendMessage("§c사용법: /uploadnews <제목> <내용...>")
+            sender.sendMessage(plugin.messages.text(sender, "news.upload-usage"))
             return true
         }
 
@@ -87,11 +87,11 @@ class News(private val plugin: JavaPlugin, private val stocks: Stocks) : Command
         newsList.add(item)
         saveNews()
 
-        sender.sendMessage("§a뉴스가 업로드되었습니다! ID: §e$id")
+        sender.sendMessage(plugin.messages.text(sender, "news.uploaded", id))
 
-        val newsChatMsg = "§6[뉴스] §e${item.title} §7- ${item.author}"
-        val newsActionBarMsg = LegacyComponentSerializer.legacySection().deserialize(newsChatMsg)
         Bukkit.getOnlinePlayers().forEach { p ->
+            val newsChatMsg = plugin.messages.text(p, "news.notification", item.title.ifBlank { plugin.messages.text(p, "news.untitled") }, item.author)
+            val newsActionBarMsg = LegacyComponentSerializer.legacySection().deserialize(newsChatMsg)
             when (stocks.getNewsNotificationMode(p.uniqueId)) {
                 "chat" -> p.sendMessage(newsChatMsg)
                 "actionbar" -> p.sendActionBar(newsActionBarMsg)
@@ -103,50 +103,50 @@ class News(private val plugin: JavaPlugin, private val stocks: Stocks) : Command
 
     private fun handleDeleteNews(sender: CommandSender, args: Array<out String>): Boolean {
         if (sender !is Player) {
-            sender.sendMessage("§c플레이어만 이 명령어를 사용할 수 있습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "common.players-only"))
             return true
         }
 
         if (args.size != 1) {
-            sender.sendMessage("§c사용법: /deletenews <뉴스ID>")
+            sender.sendMessage(plugin.messages.text(sender, "news.delete-usage"))
             return true
         }
 
         val id = args[0].toIntOrNull()
         if (id == null) {
-            sender.sendMessage("§c유효한 숫자 ID를 입력하세요.")
+            sender.sendMessage(plugin.messages.text(sender, "news.invalid-id"))
             return true
         }
 
         val item = newsList.find { it.id == id }
         if (item == null) {
-            sender.sendMessage("§c해당 ID의 뉴스를 찾을 수 없습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "news.not-found"))
             return true
         }
 
         if (item.author != sender.name) {
-            sender.sendMessage("§c자신이 올린 뉴스만 삭제할 수 있습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "news.not-author"))
             return true
         }
 
         newsList.remove(item)
         saveNews()
-        sender.sendMessage("§a뉴스(ID: $id)가 삭제되었습니다.")
+        sender.sendMessage(plugin.messages.text(sender, "news.deleted", id))
         return true
     }
 
     private fun handleCheckNews(sender: CommandSender): Boolean {
         if (newsList.isEmpty()) {
-            sender.sendMessage("§7등록된 뉴스가 없습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "news.empty"))
             return true
         }
 
-        sender.sendMessage("§6===== 뉴스 목록 =====")
+        sender.sendMessage(plugin.messages.text(sender, "news.list-header"))
         newsList
             .sortedByDescending { it.id }
             .forEach { item ->
-                sender.sendMessage("§e[${item.id}] §f${item.title} §7- ${item.author}")
-                sender.sendMessage("§7  ${item.content}")
+                sender.sendMessage(plugin.messages.text(sender, "news.list-item", item.id, item.title.ifBlank { plugin.messages.text(sender, "news.untitled") }, item.author))
+                sender.sendMessage(plugin.messages.text(sender, "news.content", item.content))
             }
         return true
     }
@@ -167,7 +167,7 @@ class News(private val plugin: JavaPlugin, private val stocks: Stocks) : Command
             val item = NewsItem(
                 id = id,
                 author = newsSec.getString("author") ?: "Unknown",
-                title = newsSec.getString("title") ?: "제목 없음",
+                title = newsSec.getString("title") ?: "",
                 content = newsSec.getString("content") ?: "",
                 timestamp = newsSec.getLong("timestamp", 0L)
             )

@@ -63,7 +63,7 @@ class Roulette(private val plugin: JavaPlugin, private val stocks: Stocks) : Com
 
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
         if (sender !is Player) {
-            sender.sendMessage("§c플레이어만 이 명령어를 사용할 수 있습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "common.players-only"))
             return true
         }
 
@@ -84,47 +84,47 @@ class Roulette(private val plugin: JavaPlugin, private val stocks: Stocks) : Com
             "add", "추가" -> {
                 val text = args.drop(1).joinToString(" ").trim()
                 if (text.isBlank()) {
-                    sender.sendMessage("§c사용법: /roulette add <문자열...>")
+                    sender.sendMessage(plugin.messages.text(sender, "roulette.add-usage"))
                     return true
                 }
                 items.add(text)
                 save()
-                sender.sendMessage("§a룰렛 항목 추가: §f$text")
+                sender.sendMessage(plugin.messages.text(sender, "roulette.added", text))
                 true
             }
             "remove", "삭제" -> {
                 val text = args.drop(1).joinToString(" ").trim()
                 if (text.isBlank()) {
-                    sender.sendMessage("§c사용법: /roulette remove <문자열...>")
+                    sender.sendMessage(plugin.messages.text(sender, "roulette.remove-usage"))
                     return true
                 }
                 val removed = items.removeIf { it.equals(text, ignoreCase = true) }
                 if (removed) {
                     save()
-                    sender.sendMessage("§a룰렛 항목 삭제: §f$text")
+                    sender.sendMessage(plugin.messages.text(sender, "roulette.removed", text))
                 } else {
-                    sender.sendMessage("§7해당 항목을 찾을 수 없습니다: §f$text")
+                    sender.sendMessage(plugin.messages.text(sender, "roulette.not-found", text))
                 }
                 true
             }
             "list", "목록" -> {
                 if (items.isEmpty()) {
-                    sender.sendMessage("§7룰렛 항목이 없습니다. §f/roulette add <문자열> §7로 추가하세요.")
+                    sender.sendMessage(plugin.messages.text(sender, "roulette.empty"))
                     return true
                 }
-                sender.sendMessage("§6===== §e룰렛 항목 (${items.size}개) §6=====")
+                sender.sendMessage(plugin.messages.text(sender, "roulette.list-header", items.size))
                 items.forEachIndexed { i, s ->
-                    sender.sendMessage("§7${i + 1}. §f$s")
+                    sender.sendMessage(plugin.messages.text(sender, "roulette.list-item", i + 1, s))
                 }
                 true
             }
             "reload", "리로드" -> {
                 if (!sender.hasPermission("fpl.roulette.admin")) {
-                    sender.sendMessage("§c권한이 없습니다.")
+                    sender.sendMessage(plugin.messages.text(sender, "common.no-permission"))
                     return true
                 }
                 load()
-                sender.sendMessage("§aroulette.yml 을 다시 불러왔습니다. (${items.size}개)")
+                sender.sendMessage(plugin.messages.text(sender, "roulette.reloaded", items.size))
                 true
             }
             else -> {
@@ -135,14 +135,14 @@ class Roulette(private val plugin: JavaPlugin, private val stocks: Stocks) : Com
     }
 
     private fun sendHelp(p: Player) {
-        p.sendMessage("§6===== §e룰렛 §6=====")
-        p.sendMessage("§7/roulette start §f- 일반 룰렛 시작")
-        p.sendMessage("§7/roulette start <금액> §f- 배팅 룰렛 시작")
-        p.sendMessage("§7배당: 모두 다름 -100% / 2개 동일 +25% / 3개 동일 +200%")
-        p.sendMessage("§7/roulette stop §f- 룰렛 중지")
-        p.sendMessage("§7/roulette list §f- 항목 목록")
-        p.sendMessage("§7/roulette add <문자열...> §f- 항목 추가")
-        p.sendMessage("§7/roulette remove <문자열...> §f- 항목 삭제")
+        p.sendMessage(plugin.messages.text(p, "roulette.help-header"))
+        p.sendMessage(plugin.messages.text(p, "roulette.help-start"))
+        p.sendMessage(plugin.messages.text(p, "roulette.help-bet"))
+        p.sendMessage(plugin.messages.text(p, "roulette.help-payout"))
+        p.sendMessage(plugin.messages.text(p, "roulette.help-stop"))
+        p.sendMessage(plugin.messages.text(p, "roulette.help-list"))
+        p.sendMessage(plugin.messages.text(p, "roulette.help-add"))
+        p.sendMessage(plugin.messages.text(p, "roulette.help-remove"))
     }
 
     private fun stop(p: Player) {
@@ -150,20 +150,20 @@ class Roulette(private val plugin: JavaPlugin, private val stocks: Stocks) : Com
         val bet = bets.remove(p.uniqueId)
         if (bet != null) {
             stocks.depositCash(p.uniqueId, bet.amount)
-            p.sendMessage("§7룰렛 중지로 배팅금 §f${formatMoney(bet.amount)}§7 이 환불되었습니다.")
+            p.sendMessage(plugin.messages.text(p, "roulette.refunded", formatMoney(bet.amount)))
         }
         p.clearTitle()
         p.sendActionBar(Component.empty())
-        p.sendMessage("§7룰렛을 중지했습니다.")
+        p.sendMessage(plugin.messages.text(p, "roulette.stopped"))
     }
 
     private fun start(p: Player, args: Array<out String>) {
         if (items.size < 3) {
-            p.sendMessage("§c룰렛 항목이 부족합니다. §f/roulette add <문자열> §c로 추가하세요.")
+            p.sendMessage(plugin.messages.text(p, "roulette.insufficient-items"))
             return
         }
         if (running.containsKey(p.uniqueId)) {
-            p.sendMessage("§7이미 룰렛이 진행 중입니다. §f/roulette stop §7으로 중지할 수 있습니다.")
+            p.sendMessage(plugin.messages.text(p, "roulette.already-running"))
             return
         }
 
@@ -171,16 +171,16 @@ class Roulette(private val plugin: JavaPlugin, private val stocks: Stocks) : Com
         if (args.size >= 2) {
             val amount = args[1].toDoubleOrNull()
             if (amount == null || amount <= 0) {
-                p.sendMessage("§c배팅 금액은 0보다 커야 합니다.")
+                p.sendMessage(plugin.messages.text(p, "roulette.invalid-bet"))
                 return
             }
             if (!stocks.withdrawCash(p.uniqueId, amount)) {
                 val bal = stocks.getCashBalance(p.uniqueId)
-                p.sendMessage("§c잔액이 부족합니다. (보유: ${formatMoney(bal)}, 필요: ${formatMoney(amount)})")
+                p.sendMessage(plugin.messages.text(p, "common.insufficient-balance", formatMoney(bal), formatMoney(amount)))
                 return
             }
             bets[p.uniqueId] = RouletteBet(amount)
-            p.sendMessage("§6[룰렛] §7배팅 완료: §f${formatMoney(amount)}")
+            p.sendMessage(plugin.messages.text(p, "roulette.bet-placed", formatMoney(amount)))
         }
 
         val spinTicks = 60L // 3초 (20t/s)
@@ -201,22 +201,22 @@ class Roulette(private val plugin: JavaPlugin, private val stocks: Stocks) : Com
             if (t >= spinTicks) {
                 running.remove(p.uniqueId)?.cancel()
                 val result = lastTriple.second
-                val title = Component.text(result, NamedTextColor.GOLD)
-                val sub = Component.text("${lastTriple.first} | ${lastTriple.second} | ${lastTriple.third}", NamedTextColor.YELLOW)
+                val title = messageComponent(plugin.messages.text(p, "roulette.result-title", result), NamedTextColor.GOLD)
+                val sub = messageComponent(plugin.messages.text(p, "roulette.triple", lastTriple.first, lastTriple.second, lastTriple.third), NamedTextColor.YELLOW)
                 p.showTitle(Title.title(title, sub, Title.Times.times(Duration.ofMillis(100), Duration.ofSeconds(2), Duration.ofMillis(300))))
                 p.sendActionBar(sub)
-                p.sendMessage("§6[룰렛] §e결과: §f$result")
+                p.sendMessage(plugin.messages.text(p, "roulette.result", result))
 
                 val bet = bets.remove(p.uniqueId)
                 if (bet != null) {
-                    val (multiplier, label) = payoutMultiplier(lastTriple)
+                    val (multiplier, label) = payoutMultiplier(p, lastTriple)
                     val payout = bet.amount * multiplier
                     if (payout > 0) {
                         stocks.depositCash(p.uniqueId, payout)
                     }
                     val diff = payout - bet.amount
-                    val diffStr = if (diff >= 0) "§a+${formatMoney(diff)}" else "§c-${formatMoney(-diff)}"
-                    p.sendMessage("§6[룰렛 배팅] §e$label §7지급: §f${formatMoney(payout)} §8(변동 $diffStr§8)")
+                    val diffStr = if (diff >= 0) plugin.messages.text(p, "roulette.gain", formatMoney(diff)) else plugin.messages.text(p, "roulette.loss", formatMoney(-diff))
+                    p.sendMessage(plugin.messages.text(p, "roulette.payout", label, formatMoney(payout), diffStr))
                 }
             }
         }, 0L, stepTicks)
@@ -236,11 +236,11 @@ class Roulette(private val plugin: JavaPlugin, private val stocks: Stocks) : Com
     }
 
     private fun show(p: Player, triple: Triple<String, String, String>) {
-        val text = "${triple.first} | ${triple.second} | ${triple.third}"
-        val title = Component.text(triple.second, NamedTextColor.YELLOW)
-        val sub = Component.text(text, NamedTextColor.GRAY)
+        val text = plugin.messages.text(p, "roulette.triple", triple.first, triple.second, triple.third)
+        val title = messageComponent(plugin.messages.text(p, "roulette.spin-title", triple.second), NamedTextColor.YELLOW)
+        val sub = messageComponent(text, NamedTextColor.GRAY)
         p.showTitle(Title.title(title, sub, Title.Times.times(Duration.ZERO, Duration.ofMillis(300), Duration.ZERO)))
-        p.sendActionBar(Component.text(text, NamedTextColor.YELLOW))
+        p.sendActionBar(messageComponent(text, NamedTextColor.YELLOW))
     }
 
     override fun onTabComplete(
@@ -271,12 +271,12 @@ class Roulette(private val plugin: JavaPlugin, private val stocks: Stocks) : Com
      * - 2개 동일: +25% (지급 1.25x)
      * - 3개 동일: +200% (지급 3.00x)
      */
-    private fun payoutMultiplier(triple: Triple<String, String, String>): Pair<Double, String> {
+    private fun payoutMultiplier(p: Player, triple: Triple<String, String, String>): Pair<Double, String> {
         val (a, b, c) = triple
         return when {
-            a.equals(b, ignoreCase = true) && b.equals(c, ignoreCase = true) -> 3.0 to "3개 동일 (+200%)"
-            a.equals(b, ignoreCase = true) || b.equals(c, ignoreCase = true) || a.equals(c, ignoreCase = true) -> 1.25 to "2개 동일 (+25%)"
-            else -> 0.0 to "모두 다름 (-100%)"
+            a.equals(b, ignoreCase = true) && b.equals(c, ignoreCase = true) -> 3.0 to plugin.messages.text(p, "roulette.three-matching")
+            a.equals(b, ignoreCase = true) || b.equals(c, ignoreCase = true) || a.equals(c, ignoreCase = true) -> 1.25 to plugin.messages.text(p, "roulette.two-matching")
+            else -> 0.0 to plugin.messages.text(p, "roulette.all-different")
         }
     }
 }

@@ -117,14 +117,14 @@ class Punishments(private val plugin: JavaPlugin) : Listener, CommandExecutor, T
                 }
             }
             4 -> {
-                player.kickPlayer("처벌 레벨 4: ${formatLeft(punishment.untilEpochMs)} 동안 밴")
+                player.kickPlayer(plugin.messages.text(player, "punishments.kicked", formatLeft(player, punishment.untilEpochMs)))
             }
         }
     }
 
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
         if (!sender.hasPermission("fpl.punish.admin")) {
-            sender.sendMessage("§c권한이 없습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "common.no-permission"))
             return true
         }
 
@@ -137,27 +137,27 @@ class Punishments(private val plugin: JavaPlugin) : Listener, CommandExecutor, T
 
     private fun handlePunish(sender: CommandSender, args: Array<out String>): Boolean {
         if (args.size < 3) {
-            sender.sendMessage("§c사용법: /punish <플레이어> <강도(1~4)> <기간>")
-            sender.sendMessage("§7기간 예시: 30m, 12h, 7d, 2026-04-10 18:00")
+            sender.sendMessage(plugin.messages.text(sender, "punishments.punish-usage"))
+            sender.sendMessage(plugin.messages.text(sender, "punishments.duration-example"))
             return true
         }
         val targetName = args[0]
         val level = args[1].toIntOrNull()
         if (level == null || level !in 1..4) {
-            sender.sendMessage("§c강도는 1~4만 가능합니다.")
+            sender.sendMessage(plugin.messages.text(sender, "punishments.invalid-level"))
             return true
         }
         val spec = args.drop(2).joinToString(" ")
         val until = parseUntil(spec)
         if (until == null || until <= System.currentTimeMillis()) {
-            sender.sendMessage("§c유효한 미래 시간/기간을 입력하세요. (예: 30m, 7d, 2026-04-10 18:00)")
+            sender.sendMessage(plugin.messages.text(sender, "punishments.invalid-duration"))
             return true
         }
 
         val offline = Bukkit.getOfflinePlayer(targetName)
         val uuid = offline.uniqueId
         if (isExempt(uuid)) {
-            sender.sendMessage("§c${targetName} 은(는) punishments.yml 의 exempt_users 예외 대상입니다.")
+            sender.sendMessage(plugin.messages.text(sender, "punishments.exempt", targetName))
             return true
         }
         val p = Punishment(uuid, targetName, level, until)
@@ -166,16 +166,16 @@ class Punishments(private val plugin: JavaPlugin) : Listener, CommandExecutor, T
 
         Bukkit.getPlayer(uuid)?.let { online ->
             applyToPlayer(online)
-            online.sendMessage("§c당신은 처벌 레벨 $level 이 적용되었습니다. 남은 시간: ${formatLeft(until)}")
+            online.sendMessage(plugin.messages.text(online, "punishments.received", level, formatLeft(online, until)))
         }
 
-        sender.sendMessage("§a${targetName}에게 처벌 레벨 $level 적용 완료. 남은 시간: ${formatLeft(until)}")
+        sender.sendMessage(plugin.messages.text(sender, "punishments.applied", targetName, level, formatLeft(sender, until)))
         return true
     }
 
     private fun handleUnpunish(sender: CommandSender, args: Array<out String>): Boolean {
         if (args.size != 1) {
-            sender.sendMessage("§c사용법: /unpunish <플레이어>")
+            sender.sendMessage(plugin.messages.text(sender, "punishments.unpunish-usage"))
             return true
         }
         val targetName = args[0]
@@ -186,10 +186,10 @@ class Punishments(private val plugin: JavaPlugin) : Listener, CommandExecutor, T
         save()
 
         if (removed == null) {
-            sender.sendMessage("§7해당 플레이어에 등록된 처벌이 없습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "punishments.not-found"))
         } else {
-            sender.sendMessage("§a${targetName}의 처벌을 해제했습니다.")
-            Bukkit.getPlayer(uuid)?.sendMessage("§a처벌이 해제되었습니다.")
+            sender.sendMessage(plugin.messages.text(sender, "punishments.removed", targetName))
+            Bukkit.getPlayer(uuid)?.let { recipient -> recipient.sendMessage(plugin.messages.text(recipient, "punishments.released")) }
         }
         return true
     }
@@ -229,17 +229,17 @@ class Punishments(private val plugin: JavaPlugin) : Listener, CommandExecutor, T
         return runCatching { Instant.parse(raw).toEpochMilli() }.getOrNull()
     }
 
-    private fun formatLeft(untilEpochMs: Long): String {
+    private fun formatLeft(sender: CommandSender, untilEpochMs: Long): String {
         val leftSec = ((untilEpochMs - System.currentTimeMillis()) / 1000L).coerceAtLeast(0)
         val d = leftSec / 86400
         val h = (leftSec % 86400) / 3600
         val m = (leftSec % 3600) / 60
         val s = leftSec % 60
         return when {
-            d > 0 -> "${d}일 ${h}시간"
-            h > 0 -> "${h}시간 ${m}분"
-            m > 0 -> "${m}분 ${s}초"
-            else -> "${s}초"
+            d > 0 -> plugin.messages.text(sender, "time.days-hours", d, h)
+            h > 0 -> plugin.messages.text(sender, "time.hours-minutes", h, m)
+            m > 0 -> plugin.messages.text(sender, "time.minutes-seconds", m, s)
+            else -> plugin.messages.text(sender, "time.seconds", s)
         }
     }
 
@@ -264,7 +264,7 @@ class Punishments(private val plugin: JavaPlugin) : Listener, CommandExecutor, T
         val msg = event.message.lowercase()
         if (msg.startsWith("/gamemode") || msg.startsWith("/gm ")) {
             event.isCancelled = true
-            event.player.sendMessage("§c처벌 중에는 게임모드를 변경할 수 없습니다.")
+            event.player.sendMessage(plugin.messages.text(event.player, "punishments.gamemode-denied"))
             Bukkit.getScheduler().runTask(plugin, Runnable { applyToPlayer(event.player) })
         }
     }
@@ -284,7 +284,7 @@ class Punishments(private val plugin: JavaPlugin) : Listener, CommandExecutor, T
         if (p.level == 4) {
             event.disallow(
                 PlayerLoginEvent.Result.KICK_BANNED,
-                "처벌 레벨 4: ${formatLeft(p.untilEpochMs)} 남음"
+                plugin.messages.text(event.player, "punishments.login-denied", formatLeft(event.player, p.untilEpochMs))
             )
         }
     }
