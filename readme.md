@@ -4,6 +4,7 @@
 3. Casino - Roll a roulette or gamble with one's money.
 4. Punishment - Admins can punish to people doing something illegal.
 5. Routes - Check or edit routes about bus, metro, etc.
+6. Minigames - Configure or play minigames.
 
 # Commands
 ## News
@@ -28,6 +29,8 @@
 ## Routes
 - routes : Display info about routes in the file. Can search with station or line.
 - Server owner can edit an infos with `resources/routes.json`.
+## Minigames
+- airsoft: Configure or play airsoft(tdm, ctf) minigame. (can be used by other minigames)
 
 | Levels | Punishments                   |
 |--------|-------------------------------|
