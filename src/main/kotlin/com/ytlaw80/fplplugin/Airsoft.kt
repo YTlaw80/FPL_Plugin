@@ -41,6 +41,7 @@ import org.bukkit.scoreboard.Objective
 import org.bukkit.scoreboard.Scoreboard
 import org.bukkit.scoreboard.Team
 import java.io.File
+import java.util.Locale
 import java.util.UUID
 
 enum class AirsoftTeam(val id: String, val competitive: Boolean) {
@@ -73,6 +74,11 @@ private data class AirsoftBoard(
     val ctfObjective: Objective
 )
 
+private data class AirsoftMap(
+    val spawns: MutableMap<AirsoftTeam, Location> = mutableMapOf(),
+    var flag: Location? = null
+)
+
 /**
  * Scoreboard based team deathmatch state.
  *
@@ -88,8 +94,14 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
     private val previousScoreboards = mutableMapOf<UUID, Scoreboard>()
     private val previousGameModes = mutableMapOf<UUID, GameMode>()
     private val scores = AirsoftTeam.entries.associateWith { 0 }.toMutableMap()
-    private val spawnLocations = mutableMapOf<AirsoftTeam, Location>()
-    private var flagLocation: Location? = null
+    private val maps = linkedMapOf(DEFAULT_MAP to AirsoftMap())
+    var activeMapName: String = DEFAULT_MAP
+        private set
+    private val spawnLocations: MutableMap<AirsoftTeam, Location>
+        get() = maps.getValue(activeMapName).spawns
+    private var flagLocation: Location?
+        get() = maps.getValue(activeMapName).flag
+        set(value) { maps.getValue(activeMapName).flag = value }
     private var flagInteraction: Interaction? = null
     private var flagCarrier: UUID? = null
     private var droppedFlag: Item? = null
@@ -145,8 +157,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
     fun shutdown() {
         isRunning = false
         resetFlag()
-        flagInteraction?.remove()
-        flagInteraction = null
+        hideFlagAtBase()
         participants.keys.toList().forEach { removeParticipant(it, true) }
     }
 
@@ -165,6 +176,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
             "spawn", "스폰" -> setSpawn(sender, args)
             "setflag", "깃발설정" -> setFlag(sender, args)
             "mode", "모드" -> setMode(sender, args.getOrNull(1))
+            "map", "맵" -> manageMap(sender, args)
             "score", "점수", "status", "상태" -> sendStatus(sender)
             else -> sendHelp(sender)
         }
@@ -323,7 +335,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
         val x = parseCoordinate(args[2], origin.x)
         val y = parseCoordinate(args[3], origin.y)
         val z = parseCoordinate(args[4], origin.z)
-        if (x == null || y == null || z == null) {
+        if (x == null || y == null || z == null || !x.isFinite() || !y.isFinite() || !z.isFinite()) {
             sender.sendMessage(plugin.messages.text(sender, "airsoft.invalid-coordinates"))
             return
         }
@@ -339,7 +351,8 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
                 player.world.name,
                 formatCoordinate(x),
                 formatCoordinate(y),
-                formatCoordinate(z)
+                formatCoordinate(z),
+                activeMapName
             )
         )
     }
@@ -377,6 +390,41 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
         sender.sendMessage(plugin.messages.text(sender, "airsoft.mode-set", selected.name))
     }
 
+    private fun manageMap(sender: CommandSender, args: Array<out String>) {
+        if (args.size == 1 || (args.size == 2 && args[1].equals("list", true))) {
+            sender.sendMessage(plugin.messages.text(sender, "airsoft.map-list", activeMapName, maps.keys.sorted().joinToString(", ")))
+            return
+        }
+        if (!sender.hasPermission(ADMIN_PERMISSION)) {
+            sender.sendMessage(plugin.messages.text(sender, "common.no-permission"))
+            return
+        }
+        if (args.size != 2) {
+            sender.sendMessage(plugin.messages.text(sender, "airsoft.map-usage"))
+            return
+        }
+        if (isRunning) {
+            sender.sendMessage(plugin.messages.text(sender, "airsoft.already-running"))
+            return
+        }
+        val name = args[1].lowercase(Locale.ROOT)
+        if (!MAP_NAME_PATTERN.matches(name) || name == "list") {
+            sender.sendMessage(plugin.messages.text(sender, "airsoft.map-invalid"))
+            return
+        }
+        if (name != activeMapName) {
+            resetFlag()
+            hideFlagAtBase()
+            maps.putIfAbsent(name, AirsoftMap())
+            activeMapName = name
+            restoreFlagAtBase()
+            scores.keys.forEach { scores[it] = 0 }
+            updateScoreboard()
+            saveData()
+        }
+        sender.sendMessage(plugin.messages.text(sender, "airsoft.map-selected", activeMapName))
+    }
+
     private fun setFlag(sender: CommandSender, args: Array<out String>) {
         if (!sender.hasPermission(ADMIN_PERMISSION)) {
             sender.sendMessage(plugin.messages.text(sender, "common.no-permission"))
@@ -404,6 +452,11 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
         }
         val newLocation = Location(player.world, x, y, z).block.location
         val newBlock = newLocation.block
+        val otherMap = maps.entries.firstOrNull { (name, map) -> name != activeMapName && map.flag == newLocation }
+        if (otherMap != null) {
+            sender.sendMessage(plugin.messages.text(sender, "airsoft.flag-used-by-other-map", otherMap.key))
+            return
+        }
         if (!newBlock.type.isAir && newLocation != flagLocation) {
             sender.sendMessage(plugin.messages.text(sender, "airsoft.flag-space-occupied"))
             return
@@ -422,7 +475,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
         flagLocation = newLocation
         restoreFlagAtBase()
         saveData()
-        sender.sendMessage(plugin.messages.text(sender, "airsoft.flag-set", player.world.name, newLocation.blockX, newLocation.blockY, newLocation.blockZ))
+        sender.sendMessage(plugin.messages.text(sender, "airsoft.flag-set", player.world.name, newLocation.blockX, newLocation.blockY, newLocation.blockZ, activeMapName))
     }
 
     private fun flagItem(): ItemStack = ItemStack(Material.WHITE_BANNER).apply {
@@ -508,17 +561,35 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
         if (!dataFile.exists()) return
         val yaml = YamlConfiguration.loadConfiguration(dataFile)
         mode = runCatching { AirsoftMode.valueOf(yaml.getString("mode", "TDM")!!.uppercase()) }.getOrDefault(AirsoftMode.TDM)
-        flagLocation = yaml.getLocation("flag")
-        competitiveTeams().forEach { team ->
-            yaml.getLocation("spawns.${team.id}")?.let { spawnLocations[team] = it }
+        val mapSection = yaml.getConfigurationSection("maps")
+        if (mapSection == null) {
+            flagLocation = yaml.getLocation("flag")
+            competitiveTeams().forEach { team ->
+                yaml.getLocation("spawns.${team.id}")?.let { spawnLocations[team] = it }
+            }
+            if (yaml.contains("flag") || yaml.contains("spawns")) saveData()
+            return
         }
+        mapSection.getKeys(false).forEach { name ->
+            if (!MAP_NAME_PATTERN.matches(name) || name == "list") return@forEach
+            val map = AirsoftMap(flag = yaml.getLocation("maps.$name.flag"))
+            competitiveTeams().forEach { team ->
+                yaml.getLocation("maps.$name.spawns.${team.id}")?.let { map.spawns[team] = it }
+            }
+            maps[name] = map
+        }
+        activeMapName = yaml.getString("active-map")?.takeIf { maps.containsKey(it) } ?: DEFAULT_MAP
     }
 
     private fun saveData() {
         val yaml = YamlConfiguration()
         yaml.set("mode", mode.name.lowercase())
-        yaml.set("flag", flagLocation)
-        competitiveTeams().forEach { team -> yaml.set("spawns.${team.id}", spawnLocations[team]) }
+        yaml.set("active-map", activeMapName)
+        maps.forEach { (name, map) ->
+            yaml.createSection("maps.$name")
+            yaml.set("maps.$name.flag", map.flag)
+            competitiveTeams().forEach { team -> yaml.set("maps.$name.spawns.${team.id}", map.spawns[team]) }
+        }
         if (!plugin.dataFolder.exists()) plugin.dataFolder.mkdirs()
         yaml.save(dataFile)
     }
@@ -667,6 +738,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
 
     private fun sendStatus(sender: CommandSender) {
         sender.sendMessage(plugin.messages.text(sender, "airsoft.status-header"))
+        sender.sendMessage(plugin.messages.text(sender, "airsoft.status-map", activeMapName))
         sender.sendMessage(plugin.messages.text(sender, "airsoft.status-mode", mode.name))
         sender.sendMessage(plugin.messages.text(sender, "airsoft.status-state", if (isRunning) "RUNNING" else "WAITING"))
         sender.sendMessage(plugin.messages.text(sender, "airsoft.status-red", scoreOf(AirsoftTeam.RED), teamSize(AirsoftTeam.RED)))
@@ -683,7 +755,9 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
         sender.sendMessage(plugin.messages.text(sender, "airsoft.help-join"))
         sender.sendMessage(plugin.messages.text(sender, "airsoft.help-leave"))
         sender.sendMessage(plugin.messages.text(sender, "airsoft.help-score"))
+        sender.sendMessage(plugin.messages.text(sender, "airsoft.help-map-list"))
         if (sender.hasPermission(ADMIN_PERMISSION)) {
+            sender.sendMessage(plugin.messages.text(sender, "airsoft.help-map"))
             sender.sendMessage(plugin.messages.text(sender, "airsoft.help-start"))
             sender.sendMessage(plugin.messages.text(sender, "airsoft.help-stop"))
             sender.sendMessage(plugin.messages.text(sender, "airsoft.help-switchteam"))
@@ -798,7 +872,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
 
     @EventHandler
     fun onFlagBreak(event: BlockBreakEvent) {
-        if (event.block.location == flagLocation && event.block.type == Material.WHITE_BANNER) event.isCancelled = true
+        if (event.block.type == Material.WHITE_BANNER && maps.values.any { it.flag == event.block.location }) event.isCancelled = true
     }
 
     @EventHandler
@@ -826,7 +900,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
     ): MutableList<String> {
         val options = when (args.size) {
             1 -> buildList {
-                addAll(listOf("join", "leave", "score"))
+                addAll(listOf("join", "leave", "score", "map"))
                 if (sender.hasPermission(ADMIN_PERMISSION)) addAll(listOf("start", "stop", "switchteam", "spawn", "setflag", "mode"))
             }
             2 -> when (args[0].lowercase()) {
@@ -838,6 +912,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
                 "spawn", "스폰" -> if (sender.hasPermission(ADMIN_PERMISSION)) competitiveTeams().map { it.id } else emptyList()
                 "mode", "모드" -> if (sender.hasPermission(ADMIN_PERMISSION)) listOf("tdm", "ctf") else emptyList()
                 "setflag", "깃발설정" -> if (sender.hasPermission(ADMIN_PERMISSION)) listOf("~") else emptyList()
+                "map", "맵" -> if (sender.hasPermission(ADMIN_PERMISSION)) listOf("list") + maps.keys.sorted() else listOf("list")
                 else -> emptyList()
             }
             3 -> if (args[0].equals("switchteam", true) || args[0] == "팀변경") {
@@ -855,6 +930,8 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
 
     companion object {
         private const val ADMIN_PERMISSION = "fpl.airsoft.admin"
+        private const val DEFAULT_MAP = "default"
+        private val MAP_NAME_PATTERN = Regex("[a-z0-9_-]{1,32}")
         private const val DEFAULT_TARGET_SCORE = 20
         private const val DEFAULT_CTF_TARGET_SCORE = 3
         private const val MAX_TARGET_SCORE = 999

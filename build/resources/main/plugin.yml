@@ -99,7 +99,7 @@ commands:
     aliases: [룰렛, 룰렛돌리기]
   airsoft:
     description: 에어소프트 미니게임을 관리합니다.
-    usage: "/airsoft <join|leave|start|stop|switchteam|spawn|setflag|mode|score>"
+    usage: "/airsoft <join|leave|start|stop|switchteam|spawn|setflag|mode|map|score>"
     aliases: [에어소프트, as, 에솦, dpdjvhtmxm, dpthv]
   clearentity:
     description: 월드에 존재하는 엔티티 중 safe_entity.yml 파일에 없는 엔티티를 모두 제거합니다. (OP 전용)
