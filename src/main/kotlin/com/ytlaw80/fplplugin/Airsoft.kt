@@ -67,6 +67,15 @@ enum class AirsoftTeam(val id: String, val competitive: Boolean) {
 
 enum class AirsoftMode { TDM, CTF }
 
+private enum class AirsoftMapType(val id: String, val teams: List<AirsoftTeam>) {
+    TWO_TEAMS("2teams", listOf(AirsoftTeam.RED, AirsoftTeam.BLUE)),
+    FOUR_TEAMS("4teams", listOf(AirsoftTeam.RED, AirsoftTeam.BLUE, AirsoftTeam.GREEN, AirsoftTeam.YELLOW));
+
+    companion object {
+        fun from(input: String?): AirsoftMapType? = entries.firstOrNull { it.id.equals(input, true) }
+    }
+}
+
 private data class AirsoftBoard(
     val scoreboard: Scoreboard,
     val teams: Map<AirsoftTeam, Team>,
@@ -76,7 +85,8 @@ private data class AirsoftBoard(
 
 private data class AirsoftMap(
     val spawns: MutableMap<AirsoftTeam, Location> = mutableMapOf(),
-    var flag: Location? = null
+    var flag: Location? = null,
+    var type: AirsoftMapType = AirsoftMapType.FOUR_TEAMS
 )
 
 /**
@@ -97,17 +107,22 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
     private val maps = linkedMapOf(DEFAULT_MAP to AirsoftMap())
     var activeMapName: String = DEFAULT_MAP
         private set
+    private val activeMap: AirsoftMap
+        get() = maps.getValue(activeMapName)
     private val spawnLocations: MutableMap<AirsoftTeam, Location>
-        get() = maps.getValue(activeMapName).spawns
+        get() = activeMap.spawns
     private var flagLocation: Location?
-        get() = maps.getValue(activeMapName).flag
-        set(value) { maps.getValue(activeMapName).flag = value }
+        get() = activeMap.flag
+        set(value) { activeMap.flag = value }
     private var flagInteraction: Interaction? = null
     private var flagCarrier: UUID? = null
     private var droppedFlag: Item? = null
     private var flagReturnTask: BukkitTask? = null
 
     var mode: AirsoftMode = AirsoftMode.TDM
+        private set
+
+    var isEnabled: Boolean = true
         private set
 
     var isRunning: Boolean = false
@@ -118,10 +133,10 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
     init {
         loadData()
         targetScore = defaultTargetScore()
-        restoreFlagAtBase()
-        Bukkit.getOnlinePlayers().forEach {
-            removeFlagFromInventory(it)
-            moveToTeam(it, AirsoftTeam.UNASSIGNED)
+        if (isEnabled) restoreFlagAtBase()
+        Bukkit.getOnlinePlayers().forEach { player ->
+            removeFlagFromInventory(player)
+            if (isEnabled) moveToTeam(player, AirsoftTeam.UNASSIGNED)
         }
         updateScoreboard()
     }
@@ -130,7 +145,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
 
     fun scoreOf(team: AirsoftTeam): Int = scores.getValue(team)
 
-    fun spawnOf(team: AirsoftTeam): Location? = spawnLocations[team]?.clone()
+    fun spawnOf(team: AirsoftTeam): Location? = if (team in competitiveTeams()) spawnLocations[team]?.clone() else null
 
     fun teleportToTeamSpawn(player: Player): Boolean {
         val team = teamOf(player)?.takeIf { it.competitive } ?: return false
@@ -143,7 +158,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
         if (!isRunning || mode != AirsoftMode.TDM || killer.uniqueId == victim.uniqueId) return false
         val killerTeam = teamOf(killer) ?: return false
         val victimTeam = teamOf(victim) ?: return false
-        if (!killerTeam.competitive || !victimTeam.competitive || killerTeam == victimTeam) return false
+        if (killerTeam !in competitiveTeams() || victimTeam !in competitiveTeams() || killerTeam == victimTeam) return false
 
         val newScore = scoreOf(killerTeam) + 1
         scores[killerTeam] = newScore
@@ -168,6 +183,15 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
         }
 
         when (args[0].lowercase()) {
+            "on" -> { setEnabled(sender, true); return true }
+            "off" -> { setEnabled(sender, false); return true }
+        }
+        if (!isEnabled) {
+            sender.sendMessage(plugin.messages.text(sender, "airsoft.disabled"))
+            return true
+        }
+
+        when (args[0].lowercase()) {
             "join", "참가" -> join(sender, args.getOrNull(1))
             "leave", "퇴장" -> leave(sender)
             "start", "시작" -> start(sender, args.getOrNull(1))
@@ -183,6 +207,35 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
         return true
     }
 
+    private fun setEnabled(sender: CommandSender, enabled: Boolean) {
+        if (!sender.hasPermission(ADMIN_PERMISSION)) {
+            sender.sendMessage(plugin.messages.text(sender, "common.no-permission"))
+            return
+        }
+        if (isEnabled == enabled) {
+            sender.sendMessage(plugin.messages.text(sender, if (enabled) "airsoft.already-enabled" else "airsoft.already-disabled"))
+            return
+        }
+
+        if (enabled) {
+            isEnabled = true
+            restoreFlagAtBase()
+            Bukkit.getOnlinePlayers().forEach { player ->
+                removeFlagFromInventory(player)
+                moveToTeam(player, AirsoftTeam.UNASSIGNED)
+            }
+            updateScoreboard()
+        } else {
+            isRunning = false
+            resetFlag()
+            hideFlagAtBase()
+            isEnabled = false
+            participants.keys.toList().forEach { removeParticipant(it, true) }
+        }
+        saveData()
+        sender.sendMessage(plugin.messages.text(sender, if (enabled) "airsoft.enabled" else "airsoft.disabled-confirmation"))
+    }
+
     private fun join(sender: CommandSender, requestedTeam: String?) {
         val player = sender as? Player ?: run {
             sender.sendMessage(plugin.messages.text(sender, "common.players-only"))
@@ -194,6 +247,10 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
                 player.sendMessage(plugin.messages.text(player, "airsoft.unknown-team"))
                 return
             }
+        }
+        if (team.competitive && team !in competitiveTeams()) {
+            player.sendMessage(plugin.messages.text(player, "airsoft.team-not-in-map", activeMap.type.id))
+            return
         }
         if (isRunning && team.competitive) {
             player.sendMessage(plugin.messages.text(player, "airsoft.already-running"))
@@ -237,8 +294,8 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
             sender.sendMessage(plugin.messages.text(sender, "airsoft.invalid-target", MAX_TARGET_SCORE))
             return
         }
-        if (competitiveTeams().count { teamSize(it) > 0 } < 2) {
-            sender.sendMessage(plugin.messages.text(sender, "airsoft.need-two-teams"))
+        if (competitiveTeams().any { teamSize(it) == 0 }) {
+            sender.sendMessage(plugin.messages.text(sender, "airsoft.need-map-teams", activeMap.type.id, competitiveTeams().joinToString(", ") { it.name }))
             return
         }
         if (mode == AirsoftMode.CTF && flagLocation == null) {
@@ -302,6 +359,10 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
             sender.sendMessage(plugin.messages.text(sender, "airsoft.unknown-team"))
             return
         }
+        if (newTeam.competitive && newTeam !in competitiveTeams()) {
+            sender.sendMessage(plugin.messages.text(sender, "airsoft.team-not-in-map", activeMap.type.id))
+            return
+        }
         if (oldTeam == newTeam) {
             sender.sendMessage(plugin.messages.text(sender, "airsoft.already-on-team", target.name, teamName(newTeam)))
             return
@@ -327,8 +388,8 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
             return
         }
         val team = AirsoftTeam.from(args[1])
-        if (team == null || !team.competitive) {
-            sender.sendMessage(plugin.messages.text(sender, "airsoft.spawn-team-invalid"))
+        if (team == null || team !in competitiveTeams()) {
+            sender.sendMessage(plugin.messages.text(sender, "airsoft.spawn-team-invalid", competitiveTeams().joinToString(", ") { it.id }))
             return
         }
         val origin = player.location
@@ -392,14 +453,15 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
 
     private fun manageMap(sender: CommandSender, args: Array<out String>) {
         if (args.size == 1 || (args.size == 2 && args[1].equals("list", true))) {
-            sender.sendMessage(plugin.messages.text(sender, "airsoft.map-list", activeMapName, maps.keys.sorted().joinToString(", ")))
+            val names = maps.entries.sortedBy { it.key }.joinToString(", ") { (name, map) -> "$name (${map.type.id})" }
+            sender.sendMessage(plugin.messages.text(sender, "airsoft.map-list", activeMapName, names))
             return
         }
         if (!sender.hasPermission(ADMIN_PERMISSION)) {
             sender.sendMessage(plugin.messages.text(sender, "common.no-permission"))
             return
         }
-        if (args.size != 2) {
+        if (args.size !in 2..3) {
             sender.sendMessage(plugin.messages.text(sender, "airsoft.map-usage"))
             return
         }
@@ -412,17 +474,32 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
             sender.sendMessage(plugin.messages.text(sender, "airsoft.map-invalid"))
             return
         }
+        val type = if (args.size == 3) AirsoftMapType.from(args[2]) else maps[name]?.type ?: AirsoftMapType.FOUR_TEAMS
+        if (type == null) {
+            sender.sendMessage(plugin.messages.text(sender, "airsoft.map-usage"))
+            return
+        }
+        val changed = name != activeMapName || type != activeMap.type
         if (name != activeMapName) {
             resetFlag()
             hideFlagAtBase()
             maps.putIfAbsent(name, AirsoftMap())
             activeMapName = name
             restoreFlagAtBase()
+        }
+        activeMap.type = type
+        if (changed) {
+            participants.keys.mapNotNull(Bukkit::getPlayer).forEach { player ->
+                if (teamOf(player)?.competitive == true && teamOf(player) !in competitiveTeams()) {
+                    moveToTeam(player, AirsoftTeam.UNASSIGNED)
+                    player.sendMessage(plugin.messages.text(player, "airsoft.team-removed-from-map", activeMapName, type.id))
+                }
+            }
             scores.keys.forEach { scores[it] = 0 }
             updateScoreboard()
             saveData()
         }
-        sender.sendMessage(plugin.messages.text(sender, "airsoft.map-selected", activeMapName))
+        sender.sendMessage(plugin.messages.text(sender, "airsoft.map-selected", activeMapName, type.id))
     }
 
     private fun setFlag(sender: CommandSender, args: Array<out String>) {
@@ -520,7 +597,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
 
     private fun takeFlag(player: Player) {
         if (!isRunning || mode != AirsoftMode.CTF || flagCarrier != null || droppedFlag != null) return
-        if (teamOf(player)?.competitive != true || player.inventory.firstEmpty() == -1) {
+        if (teamOf(player) !in competitiveTeams() || player.inventory.firstEmpty() == -1) {
             player.sendMessage(plugin.messages.text(player, "airsoft.flag-inventory-full"))
             return
         }
@@ -560,11 +637,12 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
     private fun loadData() {
         if (!dataFile.exists()) return
         val yaml = YamlConfiguration.loadConfiguration(dataFile)
+        isEnabled = yaml.getBoolean("enabled", true)
         mode = runCatching { AirsoftMode.valueOf(yaml.getString("mode", "TDM")!!.uppercase()) }.getOrDefault(AirsoftMode.TDM)
         val mapSection = yaml.getConfigurationSection("maps")
         if (mapSection == null) {
             flagLocation = yaml.getLocation("flag")
-            competitiveTeams().forEach { team ->
+            allCompetitiveTeams().forEach { team ->
                 yaml.getLocation("spawns.${team.id}")?.let { spawnLocations[team] = it }
             }
             if (yaml.contains("flag") || yaml.contains("spawns")) saveData()
@@ -572,8 +650,11 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
         }
         mapSection.getKeys(false).forEach { name ->
             if (!MAP_NAME_PATTERN.matches(name) || name == "list") return@forEach
-            val map = AirsoftMap(flag = yaml.getLocation("maps.$name.flag"))
-            competitiveTeams().forEach { team ->
+            val map = AirsoftMap(
+                flag = yaml.getLocation("maps.$name.flag"),
+                type = AirsoftMapType.from(yaml.getString("maps.$name.type")) ?: AirsoftMapType.FOUR_TEAMS
+            )
+            allCompetitiveTeams().forEach { team ->
                 yaml.getLocation("maps.$name.spawns.${team.id}")?.let { map.spawns[team] = it }
             }
             maps[name] = map
@@ -583,12 +664,14 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
 
     private fun saveData() {
         val yaml = YamlConfiguration()
+        yaml.set("enabled", isEnabled)
         yaml.set("mode", mode.name.lowercase())
         yaml.set("active-map", activeMapName)
         maps.forEach { (name, map) ->
             yaml.createSection("maps.$name")
+            yaml.set("maps.$name.type", map.type.id)
             yaml.set("maps.$name.flag", map.flag)
-            competitiveTeams().forEach { team -> yaml.set("maps.$name.spawns.${team.id}", map.spawns[team]) }
+            allCompetitiveTeams().forEach { team -> yaml.set("maps.$name.spawns.${team.id}", map.spawns[team]) }
         }
         if (!plugin.dataFolder.exists()) plugin.dataFolder.mkdirs()
         yaml.save(dataFile)
@@ -600,14 +683,18 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
             resetFlag()
             broadcast("airsoft.ctf-winner", teamName(winner))
         } else {
-            broadcast(
-                "airsoft.winner",
-                teamName(winner),
-                scoreOf(AirsoftTeam.RED),
-                scoreOf(AirsoftTeam.BLUE),
-                scoreOf(AirsoftTeam.GREEN),
-                scoreOf(AirsoftTeam.YELLOW)
-            )
+            if (activeMap.type == AirsoftMapType.TWO_TEAMS) {
+                broadcast("airsoft.winner-two-teams", teamName(winner), scoreOf(AirsoftTeam.RED), scoreOf(AirsoftTeam.BLUE))
+            } else {
+                broadcast(
+                    "airsoft.winner",
+                    teamName(winner),
+                    scoreOf(AirsoftTeam.RED),
+                    scoreOf(AirsoftTeam.BLUE),
+                    scoreOf(AirsoftTeam.GREEN),
+                    scoreOf(AirsoftTeam.YELLOW)
+                )
+            }
         }
         updateScoreboard()
     }
@@ -663,7 +750,9 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
 
     private fun defaultTargetScore(): Int = if (mode == AirsoftMode.CTF) DEFAULT_CTF_TARGET_SCORE else DEFAULT_TARGET_SCORE
 
-    private fun competitiveTeams(): List<AirsoftTeam> = AirsoftTeam.entries.filter { it.competitive }
+    private fun competitiveTeams(): List<AirsoftTeam> = activeMap.type.teams
+
+    private fun allCompetitiveTeams(): List<AirsoftTeam> = AirsoftMapType.FOUR_TEAMS.teams
 
     private fun teamSize(team: AirsoftTeam): Int = participants.values.count { it == team }
 
@@ -711,6 +800,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
     }
 
     fun refreshScoreboard(player: Player) {
+        if (!isEnabled) return
         val board = boards[player.uniqueId] ?: return
         board.tdmObjective.displayName(Component.text(plugin.messages.text(player, "airsoft.scoreboard-kills"), NamedTextColor.GOLD))
         board.ctfObjective.displayName(Component.text(plugin.messages.text(player, "airsoft.scoreboard-score"), NamedTextColor.GOLD))
@@ -721,6 +811,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
     }
 
     private fun updateScoreboard() {
+        if (!isEnabled) return
         boards.values.forEach { board ->
             val activeObjective = if (mode == AirsoftMode.CTF) board.ctfObjective else board.tdmObjective
             activeObjective.displaySlot = DisplaySlot.SIDEBAR
@@ -728,8 +819,13 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
                 objective.getScore("§7목표 점수").score = targetScore
                 objective.getScore("§cRED").score = scoreOf(AirsoftTeam.RED)
                 objective.getScore("§9BLUE").score = scoreOf(AirsoftTeam.BLUE)
-                objective.getScore("§aGREEN").score = scoreOf(AirsoftTeam.GREEN)
-                objective.getScore("§eYELLOW").score = scoreOf(AirsoftTeam.YELLOW)
+                if (activeMap.type == AirsoftMapType.FOUR_TEAMS) {
+                    objective.getScore("§aGREEN").score = scoreOf(AirsoftTeam.GREEN)
+                    objective.getScore("§eYELLOW").score = scoreOf(AirsoftTeam.YELLOW)
+                } else {
+                    board.scoreboard.resetScores("§aGREEN")
+                    board.scoreboard.resetScores("§eYELLOW")
+                }
                 objective.getScore("§7관전자").score = teamSize(AirsoftTeam.SPECTATOR)
                 objective.getScore("§8미참가자").score = teamSize(AirsoftTeam.UNASSIGNED)
             }
@@ -738,13 +834,15 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
 
     private fun sendStatus(sender: CommandSender) {
         sender.sendMessage(plugin.messages.text(sender, "airsoft.status-header"))
-        sender.sendMessage(plugin.messages.text(sender, "airsoft.status-map", activeMapName))
+        sender.sendMessage(plugin.messages.text(sender, "airsoft.status-map", activeMapName, activeMap.type.id))
         sender.sendMessage(plugin.messages.text(sender, "airsoft.status-mode", mode.name))
         sender.sendMessage(plugin.messages.text(sender, "airsoft.status-state", if (isRunning) "RUNNING" else "WAITING"))
         sender.sendMessage(plugin.messages.text(sender, "airsoft.status-red", scoreOf(AirsoftTeam.RED), teamSize(AirsoftTeam.RED)))
         sender.sendMessage(plugin.messages.text(sender, "airsoft.status-blue", scoreOf(AirsoftTeam.BLUE), teamSize(AirsoftTeam.BLUE)))
-        sender.sendMessage(plugin.messages.text(sender, "airsoft.status-green", scoreOf(AirsoftTeam.GREEN), teamSize(AirsoftTeam.GREEN)))
-        sender.sendMessage(plugin.messages.text(sender, "airsoft.status-yellow", scoreOf(AirsoftTeam.YELLOW), teamSize(AirsoftTeam.YELLOW)))
+        if (activeMap.type == AirsoftMapType.FOUR_TEAMS) {
+            sender.sendMessage(plugin.messages.text(sender, "airsoft.status-green", scoreOf(AirsoftTeam.GREEN), teamSize(AirsoftTeam.GREEN)))
+            sender.sendMessage(plugin.messages.text(sender, "airsoft.status-yellow", scoreOf(AirsoftTeam.YELLOW), teamSize(AirsoftTeam.YELLOW)))
+        }
         sender.sendMessage(plugin.messages.text(sender, "airsoft.status-spectator", teamSize(AirsoftTeam.SPECTATOR)))
         sender.sendMessage(plugin.messages.text(sender, "airsoft.status-unassigned", teamSize(AirsoftTeam.UNASSIGNED)))
         sender.sendMessage(plugin.messages.text(sender, "airsoft.status-target", targetScore))
@@ -752,6 +850,11 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
 
     private fun sendHelp(sender: CommandSender) {
         sender.sendMessage(plugin.messages.text(sender, "airsoft.help-header"))
+        if (sender.hasPermission(ADMIN_PERMISSION)) sender.sendMessage(plugin.messages.text(sender, "airsoft.help-toggle"))
+        if (!isEnabled) {
+            sender.sendMessage(plugin.messages.text(sender, "airsoft.disabled"))
+            return
+        }
         sender.sendMessage(plugin.messages.text(sender, "airsoft.help-join"))
         sender.sendMessage(plugin.messages.text(sender, "airsoft.help-leave"))
         sender.sendMessage(plugin.messages.text(sender, "airsoft.help-score"))
@@ -776,12 +879,12 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
     @EventHandler
     fun onPlayerJoin(event: PlayerJoinEvent) {
         removeFlagFromInventory(event.player)
-        moveToTeam(event.player, AirsoftTeam.UNASSIGNED)
+        if (isEnabled) moveToTeam(event.player, AirsoftTeam.UNASSIGNED)
     }
 
     @EventHandler
     fun onGameModeChange(event: PlayerGameModeChangeEvent) {
-        if (teamOf(event.player) == AirsoftTeam.SPECTATOR && event.newGameMode != GameMode.SPECTATOR) {
+        if (isEnabled && teamOf(event.player) == AirsoftTeam.SPECTATOR && event.newGameMode != GameMode.SPECTATOR) {
             event.isCancelled = true
             event.player.sendMessage(plugin.messages.text(event.player, "airsoft.spectator-mode-locked"))
         }
@@ -790,7 +893,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
     @EventHandler(ignoreCancelled = true)
     fun onPlayerMove(event: PlayerMoveEvent) {
         if (!isRunning || mode != AirsoftMode.CTF || flagCarrier != event.player.uniqueId) return
-        val team = teamOf(event.player)?.takeIf { it.competitive } ?: return
+        val team = teamOf(event.player)?.takeIf { it in competitiveTeams() } ?: return
         val spawn = spawnOf(team) ?: return
         val destination = event.to ?: return
         if (destination.world != spawn.world || destination.distanceSquared(spawn) > CAPTURE_RADIUS_SQUARED) return
@@ -835,7 +938,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
         if (event.item.uniqueId != droppedFlag?.uniqueId) return
         event.isCancelled = true
         val player = event.entity as? Player ?: return
-        if (!isRunning || mode != AirsoftMode.CTF || teamOf(player)?.competitive != true) return
+        if (!isRunning || mode != AirsoftMode.CTF || teamOf(player) !in competitiveTeams()) return
         if (player.inventory.firstEmpty() == -1) {
             player.sendMessage(plugin.messages.text(player, "airsoft.flag-inventory-full"))
             return
@@ -900,11 +1003,14 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
     ): MutableList<String> {
         val options = when (args.size) {
             1 -> buildList {
-                addAll(listOf("join", "leave", "score", "map"))
-                if (sender.hasPermission(ADMIN_PERMISSION)) addAll(listOf("start", "stop", "switchteam", "spawn", "setflag", "mode"))
+                if (isEnabled) addAll(listOf("join", "leave", "score", "map"))
+                if (sender.hasPermission(ADMIN_PERMISSION)) {
+                    addAll(listOf("on", "off"))
+                    if (isEnabled) addAll(listOf("start", "stop", "switchteam", "spawn", "setflag", "mode"))
+                }
             }
-            2 -> when (args[0].lowercase()) {
-                "join", "참가" -> AirsoftTeam.entries.map { it.id }
+            2 -> if (!isEnabled) emptyList() else when (args[0].lowercase()) {
+                "join", "참가" -> competitiveTeams().map { it.id } + listOf(AirsoftTeam.UNASSIGNED.id, AirsoftTeam.SPECTATOR.id)
                 "start", "시작" -> if (sender.hasPermission(ADMIN_PERMISSION)) listOf("10", "20", "30", "50") else emptyList()
                 "switchteam", "팀변경" -> if (sender.hasPermission(ADMIN_PERMISSION)) {
                     participants.keys.mapNotNull(Bukkit::getPlayer).map { it.name }.sorted()
@@ -915,12 +1021,14 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
                 "map", "맵" -> if (sender.hasPermission(ADMIN_PERMISSION)) listOf("list") + maps.keys.sorted() else listOf("list")
                 else -> emptyList()
             }
-            3 -> if (args[0].equals("switchteam", true) || args[0] == "팀변경") {
-                if (sender.hasPermission(ADMIN_PERMISSION)) AirsoftTeam.entries.map { it.id } else emptyList()
+            3 -> if (!isEnabled) emptyList() else if (args[0].equals("switchteam", true) || args[0] == "팀변경") {
+                if (sender.hasPermission(ADMIN_PERMISSION)) competitiveTeams().map { it.id } + listOf(AirsoftTeam.UNASSIGNED.id, AirsoftTeam.SPECTATOR.id) else emptyList()
+            } else if (args[0].equals("map", true) || args[0] == "맵") {
+                if (sender.hasPermission(ADMIN_PERMISSION) && !args[1].equals("list", true)) AirsoftMapType.entries.map { it.id } else emptyList()
             } else if (args[0].equals("spawn", true) || args[0] == "스폰" || args[0].equals("setflag", true) || args[0] == "깃발설정") {
                 if (sender.hasPermission(ADMIN_PERMISSION)) listOf("~") else emptyList()
             } else emptyList()
-            4, 5 -> if (args[0].equals("spawn", true) || args[0] == "스폰" || args[0].equals("setflag", true) || args[0] == "깃발설정") {
+            4, 5 -> if (!isEnabled) emptyList() else if (args[0].equals("spawn", true) || args[0] == "스폰" || args[0].equals("setflag", true) || args[0] == "깃발설정") {
                 if (sender.hasPermission(ADMIN_PERMISSION)) listOf("~") else emptyList()
             } else emptyList()
             else -> emptyList()
