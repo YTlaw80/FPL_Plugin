@@ -32,6 +32,7 @@ class Help(private val plugin: org.bukkit.plugin.java.JavaPlugin) : CommandExecu
         HelpEntry("setmoney", "help.setmoney.description", "help.setmoney.usage"),
         HelpEntry("setcompanydesc", "help.setcompanydesc.description", "help.setcompanydesc.usage"),
         HelpEntry("language", "help.language.description", "help.language.usage"),
+        HelpEntry("airsoft", "help.airsoft.description", "help.airsoft.usage"),
     )
 
     private val perPage = 5

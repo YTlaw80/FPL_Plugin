@@ -1,6 +1,7 @@
 package com.ytlaw80.fplplugin
 
 import org.bukkit.plugin.java.JavaPlugin
+import org.bukkit.entity.Player
 
 class FPLPlugin : JavaPlugin() {
 
@@ -16,6 +17,13 @@ class FPLPlugin : JavaPlugin() {
     private lateinit var blockedBlocksListener: BlockedBlocksListener
     private lateinit var punishments: Punishments
     private lateinit var roulette: Roulette
+    lateinit var airsoft: Airsoft
+        private set
+
+    fun refreshAirsoftScoreboards(player: Player? = null) {
+        if (!this::airsoft.isInitialized) return
+        if (player == null) airsoft.refreshScoreboards() else airsoft.refreshScoreboard(player)
+    }
 
     override fun onEnable() {
         if (!dataFolder.exists()) {
@@ -89,7 +97,12 @@ class FPLPlugin : JavaPlugin() {
             it.tabCompleter = roulette
         } ?: logger.warning("명령어 /roulette 가 plugin.yml 에 정의되어 있지 않습니다.")
 
-
+        airsoft = Airsoft(this)
+        server.pluginManager.registerEvents(airsoft, this)
+        getCommand("airsoft")?.let {
+            it.setExecutor(airsoft)
+            it.tabCompleter = airsoft
+        } ?: logger.warning("명령어 /airsoft 가 plugin.yml 에 정의되어 있지 않습니다.")
 
         logger.info("FPLPlugin 활성화됨")
     }
@@ -107,6 +120,9 @@ class FPLPlugin : JavaPlugin() {
         }
         if (this::roulette.isInitialized) {
             roulette.shutdown()
+        }
+        if (this::airsoft.isInitialized) {
+            airsoft.shutdown()
         }
         logger.info("FPLPlugin 비활성화됨")
     }

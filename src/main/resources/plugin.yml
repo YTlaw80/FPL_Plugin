@@ -1,6 +1,6 @@
 name: FPLPlugin
 main: com.ytlaw80.fplplugin.FPLPlugin
-version: 1.5.0
+version: 1.6.0
 api-version: "1.21"
 author: KR_YTlaw80
 description: FPL Plugin. News, stocks, etc.
@@ -76,7 +76,7 @@ commands:
   gamble:
     description: 돈을 걸고 50% 확률로 도박합니다. 실패할수록 확률이 조금씩 올라갑니다.
     usage: "/gamble <금액>"
-    aliases: [도박, gambling, ㄷㅂ, eq]
+    aliases: [도박, ehqkr, gambling, ㄷㅂ, eq]
   routes:
     description: 노선(역) 정보를 파일에서 읽어 표시합니다. 역·선 이름으로 검색 가능합니다.
     usage: "/routes [역 또는 선 검색어] [페이지]"
@@ -97,6 +97,10 @@ commands:
     description: 문자열 목록 기반 룰렛을 돌립니다. (타이틀/액션바 표시)
     usage: "/roulette <start|stop|list|add|remove> 또는 /roulette start <금액>"
     aliases: [룰렛, 룰렛돌리기]
+  airsoft:
+    description: 에어소프트 미니게임을 관리합니다.
+    usage: "/airsoft <join|leave|start|stop|switchteam|spawn|setflag|mode|score>"
+    aliases: [에어소프트, as, 에솦, dpdjvhtmxm, dpthv]
   clearentity:
     description: 월드에 존재하는 엔티티 중 safe_entity.yml 파일에 없는 엔티티를 모두 제거합니다. (OP 전용)
     usage: /clearentity
@@ -127,4 +131,6 @@ permissions:
   fpl.roulette.admin:
     description: roulette.yml 리로드 권한
     default: op
-
+  fpl.airsoft.admin:
+    description: 에어소프트 팀 데스매치를 시작하거나 중지할 수 있습니다.
+    default: op

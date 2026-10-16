@@ -103,6 +103,7 @@ class Languages(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter 
             }
             try {
                 reload()
+                (plugin as? FPLPlugin)?.refreshAirsoftScoreboards()
                 sender.sendMessage(text(sender, "language.reloaded"))
             } catch (e: Exception) {
                 plugin.logger.warning("Could not reload language files: ${e.message}")
@@ -121,6 +122,7 @@ class Languages(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter 
         }
         try {
             preferences.save(sender.uniqueId, selected)
+            (plugin as? FPLPlugin)?.refreshAirsoftScoreboards(sender)
             sender.sendMessage(text(sender, "language.changed", catalogs[selected]?.get("language.name") ?: selected))
         } catch (e: Exception) {
             plugin.logger.warning("Could not save player language: ${e.message}")
