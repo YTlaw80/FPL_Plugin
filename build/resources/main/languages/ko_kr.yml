@@ -1,5 +1,6 @@
 # Placeholders {0}, {1}, ... are supplied by the plugin. Keep their indices.
 tag:
+  actionbar: "§6[술래잡기] §7남은 시간: §e{0} §7| 현재 술래: §c{1}"
   airsoft-conflict: "§c에어소프트 참가자는 술래잡기에 참가할 수 없습니다. 먼저 /airsoft leave를 사용하세요."
   already-joined: "§7이미 술래잡기에 참가했습니다."
   already-running: "§c진행 중인 술래잡기가 있습니다."
@@ -13,7 +14,12 @@ tag:
   caught: "§6[술래잡기] §f{0}§7이(가) §f{1}§7을(를) 잡았습니다! 남은 도망자: §e{2}명"
   eliminated: "§6[술래잡기] §f{0}§7이(가) §f{1}§7을(를) 잡았습니다! §f{1}§7은(는) 관전자로 전환됩니다. 남은 도망자: §e{2}명"
   chase-begins: "§6[술래잡기] §c술래가 움직일 수 있습니다!"
-  help-admin: "§7/tag map <이름>, border <x,y,z> <x,y,z>, setspawn, start [닉네임] [초], stop, mode <normal|infection|swap>, time <숫자> <m|s> §f- 게임 관리"
+  delay-current: "§7현재 술래 출발 대기 시간: §f{0}초"
+  delay-invalid: "§c술래 출발 대기 시간은 0~{0}초로 설정하세요."
+  delay-set: "§a술래 출발 대기 시간을 {0}초로 설정했습니다."
+  delay-too-long: "§c술래 출발 대기 시간({0}초)은 경기 시간({1}초)보다 짧아야 합니다."
+  delay-usage: "§c사용법: /tag delay <숫자> <m|s> (분 또는 초, 단위 생략 시 초)"
+  help-admin: "§7/tag map <이름>, border <x,y,z> <x,y,z>, setspawn, start [닉네임] [초], stop, mode <normal|infection|swap>, time <숫자> <m|s>, delay <숫자> <m|s> §f- 게임 관리"
   help-player: "§6[술래잡기] §7/tag join, leave, status, map list §f- 참가·퇴장·현황·맵 목록"
   invalid-duration: "§c게임 시간은 {0}~{1}초로 설정하세요."
   joined: "§6[술래잡기] §f{0}§7이(가) 참가했습니다. §8({1}명)"
@@ -40,6 +46,7 @@ tag:
   spectator-locked: "§7잡힌 플레이어는 경기가 끝날 때까지 관전자 모드로 유지됩니다."
   status: "§6[술래잡기] §7방식: §f{0} §7| 남은 시간: §f{1}초 §7| 참가자: §f{2}명 §7| 술래: §f{3}명 §7| 도망자: §f{4}명 §7| 관전자: §f{5}명"
   status-map: "§7현재 술래잡기 맵: §f{0}"
+  status-delay: "§7술래 출발 대기 시간: §f{0}초"
   stopped: "§6[술래잡기] §e게임이 중지되었습니다."
   swapped: "§6[술래잡기] §f{0}§7이(가) §f{1}§7을(를) 잡았습니다! §e{1}§7이(가) 새 술래입니다."
   time-up: "§6[술래잡기] §e시간 종료! 마지막 술래: {0}"

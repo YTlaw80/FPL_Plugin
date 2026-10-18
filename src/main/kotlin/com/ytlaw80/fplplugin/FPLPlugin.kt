@@ -28,6 +28,10 @@ class FPLPlugin : JavaPlugin() {
         if (player == null) airsoft.refreshScoreboards() else airsoft.refreshScoreboard(player)
     }
 
+    fun refreshTagNameTags() {
+        if (this::tagGame.isInitialized) tagGame.refreshNameTags()
+    }
+
     override fun onEnable() {
         if (!dataFolder.exists()) {
             dataFolder.mkdirs()

@@ -746,6 +746,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
         player.scoreboard = personalBoard.scoreboard
         if (newTeam == AirsoftTeam.SPECTATOR) player.gameMode = GameMode.SPECTATOR
         updateScoreboard()
+        (plugin as? FPLPlugin)?.refreshTagNameTags()
     }
 
     private fun setMatchGameMode(player: Player) {

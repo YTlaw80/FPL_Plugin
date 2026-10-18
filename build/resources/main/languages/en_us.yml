@@ -1,5 +1,6 @@
 # Placeholders {0}, {1}, ... are supplied by the plugin. Keep their indices.
 tag:
+  actionbar: "§6[Tag] §7Time left: §e{0} §7| Seekers: §c{1}"
   airsoft-conflict: "§cAirsoft participants cannot join tag. Use /airsoft leave first."
   already-joined: "§7You have already joined tag."
   already-running: "§cA tag match is already running."
@@ -13,7 +14,12 @@ tag:
   caught: "§6[Tag] §f{0}§7 tagged §f{1}§7! Runners left: §e{2}"
   eliminated: "§6[Tag] §f{0}§7 tagged §f{1}§7! §f{1}§7 is now a spectator. Runners left: §e{2}"
   chase-begins: "§6[Tag] §cThe seeker can move now!"
-  help-admin: "§7/tag map <name>, border <x,y,z> <x,y,z>, setspawn, start [player] [seconds], stop, mode <normal|infection|swap>, time <number> <m|s> §f- Manage the match"
+  delay-current: "§7Current seeker head start: §f{0}s"
+  delay-invalid: "§cSet a seeker head start between 0 and {0} seconds."
+  delay-set: "§aSeeker head start set to {0}s."
+  delay-too-long: "§cThe seeker head start ({0}s) must be shorter than the match duration ({1}s)."
+  delay-usage: "§cUsage: /tag delay <number> <m|s> (minutes or seconds; defaults to seconds)"
+  help-admin: "§7/tag map <name>, border <x,y,z> <x,y,z>, setspawn, start [player] [seconds], stop, mode <normal|infection|swap>, time <number> <m|s>, delay <number> <m|s> §f- Manage the match"
   help-player: "§6[Tag] §7/tag join, leave, status, map list §f- Join, leave, view status or maps"
   invalid-duration: "§cSet a match duration between {0} and {1} seconds."
   joined: "§6[Tag] §f{0}§7 joined. §8({1} players)"
@@ -40,6 +46,7 @@ tag:
   spectator-locked: "§7Tagged players remain spectators until the match ends."
   status: "§6[Tag] §7Mode: §f{0} §7| Time: §f{1}s §7| Players: §f{2} §7| Seekers: §f{3} §7| Runners: §f{4} §7| Spectators: §f{5}"
   status-map: "§7Active tag map: §f{0}"
+  status-delay: "§7Seeker head start: §f{0}s"
   stopped: "§6[Tag] §eThe match was stopped."
   swapped: "§6[Tag] §f{0}§7 tagged §f{1}§7! §e{1}§7 is the new seeker."
   time-up: "§6[Tag] §eTime is up! Last seeker: {0}"
