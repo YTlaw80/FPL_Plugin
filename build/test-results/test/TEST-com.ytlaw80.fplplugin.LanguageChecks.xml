@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.ytlaw80.fplplugin.LanguageChecks" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-10-18T03:09:28.462Z" hostname="law80ui-MacBookPro.local" time="0.162">
+<testsuite name="com.ytlaw80.fplplugin.LanguageChecks" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-10-18T03:53:08.724Z" hostname="law80ui-MacBookPro.local" time="0.198">
   <properties/>
-  <testcase name="verifyLanguages" classname="com.ytlaw80.fplplugin.LanguageChecks" time="0.159"/>
-  <system-out><![CDATA[Language checks passed: 328 keys, placeholders, fallback, per-recipient text, persistence, and components.
+  <testcase name="verifyLanguages" classname="com.ytlaw80.fplplugin.LanguageChecks" time="0.195"/>
+  <system-out><![CDATA[Language checks passed: 373 keys, placeholders, fallback, per-recipient text, persistence, and components.
 ]]></system-out>
   <system-err><![CDATA[]]></system-err>
 </testsuite>

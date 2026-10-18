@@ -243,6 +243,10 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
             sender.sendMessage(plugin.messages.text(sender, "common.players-only"))
             return
         }
+        if ((plugin as? FPLPlugin)?.tagGame?.isParticipant(player) == true) {
+            player.sendMessage(plugin.messages.text(player, "tag.leave-first"))
+            return
+        }
         val team = when {
             requestedTeam == null -> smallerTeam()
             else -> AirsoftTeam.from(requestedTeam) ?: run {
@@ -359,6 +363,10 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
         val newTeam = AirsoftTeam.from(teamArgument)
         if (newTeam == null) {
             sender.sendMessage(plugin.messages.text(sender, "airsoft.unknown-team"))
+            return
+        }
+        if (newTeam != AirsoftTeam.UNASSIGNED && (plugin as? FPLPlugin)?.tagGame?.isParticipant(target) == true) {
+            sender.sendMessage(plugin.messages.text(sender, "tag.leave-first"))
             return
         }
         if (newTeam.competitive && newTeam !in competitiveTeams()) {

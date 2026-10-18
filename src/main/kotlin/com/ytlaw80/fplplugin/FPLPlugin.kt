@@ -15,9 +15,12 @@ class FPLPlugin : JavaPlugin() {
     private lateinit var routes: Routes
     private lateinit var blockedEntitiesListener: BlockedEntitiesListener
     private lateinit var blockedBlocksListener: BlockedBlocksListener
+    private var worldEditBlockGuard: WorldEditBlockGuard? = null
     private lateinit var punishments: Punishments
     private lateinit var roulette: Roulette
     lateinit var airsoft: Airsoft
+        private set
+    lateinit var tagGame: TagGame
         private set
 
     fun refreshAirsoftScoreboards(player: Player? = null) {
@@ -81,6 +84,9 @@ class FPLPlugin : JavaPlugin() {
         // block_entity.yml 에 등록된 블록 배치/스폰을 차단 + 이미 존재하는 블록 제거
         blockedBlocksListener = BlockedBlocksListener(this)
         server.pluginManager.registerEvents(blockedBlocksListener, this)
+        if (server.pluginManager.isPluginEnabled("WorldEdit")) {
+            worldEditBlockGuard = WorldEditBlockGuard(blockedBlocksListener).also { it.register() }
+        }
 
         punishments = Punishments(this)
         server.pluginManager.registerEvents(punishments, this)
@@ -104,10 +110,18 @@ class FPLPlugin : JavaPlugin() {
             it.tabCompleter = airsoft
         } ?: logger.warning("명령어 /airsoft 가 plugin.yml 에 정의되어 있지 않습니다.")
 
+        tagGame = TagGame(this)
+        server.pluginManager.registerEvents(tagGame, this)
+        getCommand("tag")?.let {
+            it.setExecutor(tagGame)
+            it.tabCompleter = tagGame
+        } ?: logger.warning("명령어 /tag 가 plugin.yml 에 정의되어 있지 않습니다.")
+
         logger.info("FPLPlugin 활성화됨")
     }
 
     override fun onDisable() {
+        worldEditBlockGuard?.unregister()
         if (this::news.isInitialized) {
             news.saveNews()
         }
@@ -123,6 +137,9 @@ class FPLPlugin : JavaPlugin() {
         }
         if (this::airsoft.isInitialized) {
             airsoft.shutdown()
+        }
+        if (this::tagGame.isInitialized) {
+            tagGame.shutdown()
         }
         logger.info("FPLPlugin 비활성화됨")
     }

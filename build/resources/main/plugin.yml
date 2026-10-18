@@ -1,7 +1,8 @@
 name: FPLPlugin
 main: com.ytlaw80.fplplugin.FPLPlugin
-version: 1.6.0
+version: 1.6.1
 api-version: "1.21"
+softdepend: [WorldEdit]
 author: KR_YTlaw80
 description: FPL Plugin. News, stocks, etc.
 commands:
@@ -101,6 +102,10 @@ commands:
     description: 에어소프트 미니게임을 관리합니다.
     usage: "/airsoft <on|off|join|leave|start|stop|switchteam|spawn|setflag|mode|map|score>"
     aliases: [에어소프트, as, 에솦, dpdjvhtmxm, dpthv]
+  tag:
+    description: 술래잡기 미니게임을 관리합니다.
+    usage: "/tag <join|leave|status|start|stop|setspawn|mode|time|border|map>"
+    aliases: [술래잡기]
   clearentity:
     description: 월드에 존재하는 엔티티 중 safe_entity.yml 파일에 없는 엔티티를 모두 제거합니다. (OP 전용)
     usage: /clearentity
@@ -133,4 +138,7 @@ permissions:
     default: op
   fpl.airsoft.admin:
     description: 에어소프트 팀 데스매치를 시작하거나 중지할 수 있습니다.
+    default: op
+  fpl.tag.admin:
+    description: 술래잡기를 설정하고 시작하거나 중지할 수 있습니다.
     default: op

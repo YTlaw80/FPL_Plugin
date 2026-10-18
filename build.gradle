@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.ytlaw80.fplplugin"
-version = "1.6.1"
+version = "1.6.2"
 
 java {
     toolchain {
@@ -17,6 +17,10 @@ java {
 repositories {
     mavenCentral()
     maven {
+        name = "enginehub"
+        url = uri("https://maven.enginehub.org/repo/")
+    }
+    maven {
         name = "papermc"
         url = uri("https://repo.papermc.io/repository/maven-public/")
     }
@@ -24,6 +28,7 @@ repositories {
 
 dependencies {
     compileOnly "io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT"
+    compileOnly "com.sk89q.worldedit:worldedit-core:7.3.19"
     testImplementation "io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT"
     testImplementation "junit:junit:4.13.2"
     implementation "org.jetbrains.kotlin:kotlin-stdlib"

@@ -30,7 +30,8 @@
 - routes : Display info about routes in the file. Can search with station or line.
 - Server owner can edit an infos with `resources/routes.json`.
 ## Minigames
-- airsoft: Configure or play airsoft(tdm, ctf) minigame. (can be used by other minigames)
+- airsoft: Configure or play airsoft(tdm, ctf) minigame.
+- tag: Configure or play tag minigame.
 
 | Levels | Punishments                   |
 |--------|-------------------------------|

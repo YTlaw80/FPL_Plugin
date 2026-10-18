@@ -23,6 +23,7 @@ class BlockedBlocksListener(private val plugin: JavaPlugin) : Listener {
 
     private val blockFile = File(plugin.dataFolder, "block_entity.yml")
     private var blockedMaterials: Set<Material> = emptySet()
+    private var blockedWorldEditIds: Set<String> = emptySet()
 
     private val removalQueue: ArrayDeque<Chunk> = ArrayDeque()
     private var removalTask: BukkitTask? = null
@@ -35,7 +36,10 @@ class BlockedBlocksListener(private val plugin: JavaPlugin) : Listener {
     fun reloadAndEnsureDefaults() {
         ensureDefaultsFromResource()
         blockedMaterials = loadBlockedMaterials()
+        blockedWorldEditIds = blockedMaterials.mapTo(mutableSetOf()) { it.key.toString() }
     }
+
+    fun isBlockedWorldEditBlock(id: String): Boolean = id in blockedWorldEditIds
 
     private fun ensureDefaultsFromResource() {
         val resourceStream = plugin.getResource("block_entity.yml") ?: return
@@ -206,4 +210,3 @@ class BlockedBlocksListener(private val plugin: JavaPlugin) : Listener {
         }
     }
 }
-
