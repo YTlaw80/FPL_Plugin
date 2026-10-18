@@ -34,6 +34,8 @@ import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.plugin.java.JavaPlugin
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
+import org.bukkit.potion.PotionEffect
+import org.bukkit.potion.PotionEffectType
 import org.bukkit.scheduler.BukkitTask
 import org.bukkit.scoreboard.Criteria
 import org.bukkit.scoreboard.DisplaySlot
@@ -783,6 +785,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
                 color(colors.getValue(team))
                 prefix(Component.text(prefixText, colors.getValue(team)))
                 setAllowFriendlyFire(false)
+                setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.FOR_OTHER_TEAMS)
             }
         }
         participants.forEach { (uuid, team) ->
@@ -981,8 +984,14 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
     @EventHandler
     fun onPlayerRespawn(event: PlayerRespawnEvent) {
         if (!isRunning) return
-        val team = teamOf(event.player)?.takeIf { it.competitive } ?: return
+        val team = teamOf(event.player)?.takeIf { it in competitiveTeams() } ?: return
         spawnOf(team)?.let { event.respawnLocation = it }
+        val playerId = event.player.uniqueId
+        Bukkit.getScheduler().runTask(plugin, Runnable {
+            val player = Bukkit.getPlayer(playerId) ?: return@Runnable
+            if (!isEnabled || !isRunning || teamOf(player) != team || player.isDead) return@Runnable
+            player.addPotionEffect(PotionEffect(PotionEffectType.RESISTANCE, 60, 4, false, false, true))
+        })
     }
 
     @EventHandler
