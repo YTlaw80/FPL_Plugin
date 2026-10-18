@@ -31,7 +31,7 @@
 - Server owner can edit an infos with `resources/routes.json`.
 ## Minigames
 - airsoft: Configure or play airsoft(tdm, ctf) minigame. Active team players use Adventure mode during a match; their previous game mode is restored afterward.
-- tag: Configure or play tag(tag, infection, swap) minigame. 
+- tag: Configure or play tag (normal, infection, swap) minigame. `/tag start <player>` selects a joined player as the first seeker; `/tag start` selects one at random. `start <seconds>` and `start <player> <seconds>` also work.
 
 | Levels | Punishments                   |
 |--------|-------------------------------|

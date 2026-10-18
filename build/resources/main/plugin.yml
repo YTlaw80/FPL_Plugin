@@ -104,7 +104,7 @@ commands:
     aliases: [에어소프트, as, 에솦, dpdjvhtmxm, dpthv]
   tag:
     description: 술래잡기 미니게임을 관리합니다.
-    usage: "/tag <join|leave|status|start|stop|setspawn|mode|time|border|map>"
+    usage: "/tag start [닉네임] [초] 또는 /tag <join|leave|status|stop|setspawn|mode|time|border|map>"
     aliases: [술래잡기]
   clearentity:
     description: 월드에 존재하는 엔티티 중 safe_entity.yml 파일에 없는 엔티티를 모두 제거합니다. (OP 전용)
