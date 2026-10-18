@@ -1,6 +1,6 @@
 name: FPLPlugin
 main: com.ytlaw80.fplplugin.FPLPlugin
-version: 1.6.1
+version: 1.6.2
 api-version: "1.21"
 softdepend: [WorldEdit]
 author: KR_YTlaw80

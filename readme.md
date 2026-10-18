@@ -30,8 +30,8 @@
 - routes : Display info about routes in the file. Can search with station or line.
 - Server owner can edit an infos with `resources/routes.json`.
 ## Minigames
-- airsoft: Configure or play airsoft(tdm, ctf) minigame.
-- tag: Configure or play tag minigame.
+- airsoft: Configure or play airsoft(tdm, ctf) minigame. Active team players use Adventure mode during a match; their previous game mode is restored afterward.
+- tag: Configure or play tag minigame. Players use Adventure mode during a match and return to their previous game mode afterward. `/tag mode normal` makes tagged runners spectators until the match ends or they leave.
 
 | Levels | Punishments                   |
 |--------|-------------------------------|

@@ -105,6 +105,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
     private val participants = mutableMapOf<UUID, AirsoftTeam>()
     private val previousScoreboards = mutableMapOf<UUID, Scoreboard>()
     private val previousGameModes = mutableMapOf<UUID, GameMode>()
+    private val matchGameModes = mutableMapOf<UUID, GameMode>()
     private val scores = AirsoftTeam.entries.associateWith { 0 }.toMutableMap()
     private val maps = linkedMapOf(DEFAULT_MAP to AirsoftMap())
     var activeMapName: String = DEFAULT_MAP
@@ -173,6 +174,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
 
     fun shutdown() {
         isRunning = false
+        restoreMatchGameModes()
         resetFlag()
         hideFlagAtBase()
         participants.keys.toList().forEach { removeParticipant(it, true) }
@@ -229,6 +231,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
             updateScoreboard()
         } else {
             isRunning = false
+            restoreMatchGameModes()
             resetFlag()
             hideFlagAtBase()
             isEnabled = false
@@ -323,6 +326,9 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
         targetScore = requestedTarget
         scores.keys.forEach { scores[it] = 0 }
         isRunning = true
+        participants.forEach { (id, team) ->
+            if (team.competitive) Bukkit.getPlayer(id)?.let(::setMatchGameMode)
+        }
         if (mode == AirsoftMode.CTF) resetFlag()
         updateScoreboard()
         participants.keys.mapNotNull(Bukkit::getPlayer).forEach { teleportToTeamSpawn(it) }
@@ -340,6 +346,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
             return
         }
         isRunning = false
+        restoreMatchGameModes()
         resetFlag()
         broadcast("airsoft.stopped")
         updateScoreboard()
@@ -689,6 +696,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
 
     private fun finish(winner: AirsoftTeam) {
         isRunning = false
+        restoreMatchGameModes()
         if (mode == AirsoftMode.CTF) {
             resetFlag()
             broadcast("airsoft.ctf-winner", teamName(winner))
@@ -720,6 +728,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
         if (oldTeam == null) previousScoreboards[player.uniqueId] = player.scoreboard
         if (oldTeam != newTeam && flagCarrier == player.uniqueId) dropFlag(player.location)
 
+        if (oldTeam?.competitive == true && !newTeam.competitive) restoreMatchGameMode(player)
         participants[player.uniqueId] = newTeam
         if (oldTeam == AirsoftTeam.SPECTATOR && newTeam != AirsoftTeam.SPECTATOR) {
             player.gameMode = previousGameModes.remove(player.uniqueId) ?: GameMode.SURVIVAL
@@ -727,6 +736,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
         if (oldTeam != AirsoftTeam.SPECTATOR && newTeam == AirsoftTeam.SPECTATOR) {
             previousGameModes[player.uniqueId] = player.gameMode
         }
+        if (isRunning && newTeam.competitive && oldTeam?.competitive != true) setMatchGameMode(player)
 
         boards.values.forEach { board ->
             board.teams.values.forEach { it.removeEntry(player.name) }
@@ -738,13 +748,28 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
         updateScoreboard()
     }
 
-    private fun removeParticipant(uuid: UUID, restoreScoreboard: Boolean) {
-        val player = Bukkit.getPlayer(uuid)
+    private fun setMatchGameMode(player: Player) {
+        matchGameModes.putIfAbsent(player.uniqueId, player.gameMode)
+        player.gameMode = GameMode.ADVENTURE
+    }
+
+    private fun restoreMatchGameMode(player: Player) {
+        matchGameModes.remove(player.uniqueId)?.let { player.gameMode = it }
+    }
+
+    private fun restoreMatchGameModes() {
+        matchGameModes.forEach { (id, previous) -> Bukkit.getPlayer(id)?.gameMode = previous }
+        matchGameModes.clear()
+    }
+
+    private fun removeParticipant(uuid: UUID, restoreScoreboard: Boolean, knownPlayer: Player? = null) {
+        val player = knownPlayer ?: Bukkit.getPlayer(uuid)
         val oldTeam = participants.remove(uuid)
         player?.name?.let { name ->
             boards.values.forEach { board -> board.teams.values.forEach { it.removeEntry(name) } }
         }
         boards.remove(uuid)
+        if (player != null) restoreMatchGameMode(player) else matchGameModes.remove(uuid)
         if (oldTeam == AirsoftTeam.SPECTATOR && player != null) {
             player.gameMode = previousGameModes[uuid] ?: GameMode.SURVIVAL
         }
@@ -998,6 +1023,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
         Bukkit.getScheduler().runTask(plugin, Runnable {
             val player = Bukkit.getPlayer(playerId) ?: return@Runnable
             if (!isEnabled || !isRunning || teamOf(player) != team || player.isDead) return@Runnable
+            if (matchGameModes.containsKey(playerId)) player.gameMode = GameMode.ADVENTURE
             player.addPotionEffect(PotionEffect(PotionEffectType.RESISTANCE, 60, 4, false, false, true))
         })
     }
@@ -1007,7 +1033,7 @@ class Airsoft(private val plugin: JavaPlugin) : CommandExecutor, TabCompleter, L
         val oldTeam = teamOf(event.player) ?: return
         val name = event.player.name
         if (flagCarrier == event.player.uniqueId) dropFlag(event.player.location)
-        removeParticipant(event.player.uniqueId, false)
+        removeParticipant(event.player.uniqueId, false, event.player)
         if (oldTeam != AirsoftTeam.UNASSIGNED) broadcast("airsoft.left", name)
         checkForfeit()
     }
